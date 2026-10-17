@@ -9,7 +9,7 @@ let DB_PATH = path.join(__dirname, '..', 'topup_tournament.sqlite');
 if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
   const tmpPath = path.join('/tmp', 'topup_tournament.sqlite');
   try {
-    if (!fs.existsSync(tmpPath) && fs.existsSync(DB_PATH)) {
+    if (fs.existsSync(DB_PATH)) {
       fs.copyFileSync(DB_PATH, tmpPath);
     }
     DB_PATH = tmpPath;
