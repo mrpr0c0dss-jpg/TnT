@@ -147,6 +147,38 @@ class _AdminPanelShellState extends State<AdminPanelShell> {
                 icon: const Icon(Icons.search, color: kTextDark, size: 22),
                 onPressed: () => _openSearchDialog(),
               ),
+              // Live Support Chat with Dynamic Unread Badge
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    icon: const Icon(Icons.forum_outlined, color: kTextDark, size: 22),
+                    onPressed: () => _openLiveChatModal(),
+                  ),
+                  if (widget.appState.adminUnreadChatCount > 0)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF4757),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${widget.appState.adminUnreadChatCount}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               // Notification Bell with Red Badge
               Stack(
                 alignment: Alignment.topRight,
@@ -852,21 +884,26 @@ class _AdminPanelShellState extends State<AdminPanelShell> {
         ),
         const SizedBox(height: 14),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.start,
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
           children: [
             _buildHubTile(
               icon: Icons.phone_android_outlined,
               label: 'TopUp\nOrders',
               onTap: () => _openOrdersModal(),
             ),
-            const SizedBox(width: 22),
+            _buildHubTile(
+              icon: Icons.forum_outlined,
+              label: 'Live Support\nChat',
+              badgeCount: widget.appState.adminUnreadChatCount,
+              onTap: () => _openLiveChatModal(),
+            ),
             _buildHubTile(
               icon: Icons.emoji_events_outlined,
               label: 'Esports\nArenas',
               onTap: () => setState(() => _currentTab = 2), // Tournaments
             ),
-            const SizedBox(width: 22),
             _buildHubTile(
               icon: Icons.vpn_key_outlined,
               label: 'AI Key\nVault',
@@ -982,6 +1019,7 @@ class _AdminPanelShellState extends State<AdminPanelShell> {
   Widget _buildHubTile({
     required IconData icon,
     required String label,
+    int? badgeCount,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -990,14 +1028,36 @@ class _AdminPanelShellState extends State<AdminPanelShell> {
         width: 72,
         child: Column(
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: kTileBg,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon, color: kTextDark, size: 28),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: kTileBg,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(icon, color: kTextDark, size: 28),
+                ),
+                if (badgeCount != null && badgeCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4757),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Text(
+                        '$badgeCount',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -2781,6 +2841,273 @@ class _AdminPanelShellState extends State<AdminPanelShell> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
+    );
+  }
+
+  // ===========================================================================
+  // LIVE SUPPORT CHAT DESK MODAL (Mobile In-App Live Chat)
+  // ===========================================================================
+  void _openLiveChatModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: kBgColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) {
+        String? activeThreadId;
+        Map<String, dynamic>? activeConv;
+        bool isLoadingConv = false;
+        final replyCtrl = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (ctx, setMState) {
+            final threads = widget.appState.adminChatThreads;
+
+            void selectThread(String userId) async {
+              setMState(() {
+                activeThreadId = userId;
+                isLoadingConv = true;
+              });
+              final conv = await widget.appState.getChatThreadMessages(userId);
+              setMState(() {
+                activeConv = conv;
+                isLoadingConv = false;
+              });
+            }
+
+            void sendReply(String text) async {
+              if (text.trim().isEmpty || activeThreadId == null) return;
+              HapticFeedback.lightImpact();
+              replyCtrl.clear();
+              await widget.appState.sendAdminChatMessage(activeThreadId!, text.trim());
+              final conv = await widget.appState.getChatThreadMessages(activeThreadId!);
+              setMState(() {
+                activeConv = conv;
+              });
+            }
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.88,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Column(
+                children: [
+                  // Modal Top Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          if (activeThreadId != null)
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back_ios, size: 18),
+                              onPressed: () {
+                                setMState(() {
+                                  activeThreadId = null;
+                                  activeConv = null;
+                                });
+                              },
+                            ),
+                          Text(
+                            activeThreadId != null
+                                ? (activeConv?['targetUser']?['display_name'] ?? 'Player Inquiry')
+                                : 'Live Support Chat Desk',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kTextDark),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 12),
+
+                  // Content Body
+                  Expanded(
+                    child: activeThreadId == null
+                        ? (threads.isEmpty
+                            ? const Center(
+                                child: Text('No active inquiries right now.', style: TextStyle(color: kTextMuted)),
+                              )
+                            : ListView.separated(
+                                itemCount: threads.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                itemBuilder: (ctx, idx) {
+                                  final t = threads[idx];
+                                  final unread = (t['unread_count'] as int?) ?? 0;
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      color: kSurfaceWhite,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: kPrimaryBlue,
+                                        child: Text(
+                                          (t['display_name'] ?? 'U')[0].toUpperCase(),
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        t['display_name'] ?? 'Player',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: kTextDark),
+                                      ),
+                                      subtitle: Text(
+                                        t['last_message'] ?? 'Inquiry opened',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 12, color: kTextMuted),
+                                      ),
+                                      trailing: unread > 0
+                                          ? Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFFF4757),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                '$unread',
+                                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            )
+                                          : const Icon(Icons.chevron_right, color: kTextLight),
+                                      onTap: () => selectThread(t['user_id'] ?? ''),
+                                    ),
+                                  );
+                                },
+                              ))
+                        : (isLoadingConv
+                            ? const Center(child: CircularProgressIndicator())
+                            : Column(
+                                children: [
+                                  // Customer Context Bar
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '💰 Balance: Rs. ${(activeConv?['targetUser']?['wallet_balance'] ?? 0.0)}',
+                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                                        ),
+                                        if (activeConv?['latestOrder'] != null)
+                                          Flexible(
+                                            child: Text(
+                                              '💎 ${activeConv!['latestOrder']['game_name']}: ${activeConv!['latestOrder']['package_name']}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF047857)),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Messages Viewport
+                                  Expanded(
+                                    child: ListView(
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      children: ((activeConv?['messages'] as List<dynamic>?) ?? []).map((m) {
+                                        final isOutgoing = m['sender_role'] == 'admin';
+                                        return Align(
+                                          alignment: isOutgoing ? Alignment.centerRight : Alignment.centerLeft,
+                                          child: Container(
+                                            margin: const EdgeInsets.symmetric(vertical: 4),
+                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                                            decoration: BoxDecoration(
+                                              color: isOutgoing ? kPrimaryBlue : kSurfaceWhite,
+                                              borderRadius: BorderRadius.circular(14),
+                                              border: isOutgoing ? null : Border.all(color: const Color(0xFFE2E8F0)),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: isOutgoing ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  isOutgoing ? '🛡️ TnT Support' : (m['sender_name'] ?? 'Player'),
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isOutgoing ? Colors.white70 : kTextMuted,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  m['message'] ?? '',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: isOutgoing ? Colors.white : kTextDark,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+
+                                  // Quick Reply Chips
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        '⚡ Diamonds Dispatched!',
+                                        '💳 Deposit Verified!',
+                                        '🎮 Send UID Screenshot',
+                                        '🏆 Room Password Live',
+                                      ].map((q) => Padding(
+                                        padding: const EdgeInsets.only(right: 6, bottom: 6),
+                                        child: ActionChip(
+                                          label: Text(q, style: const TextStyle(fontSize: 11)),
+                                          backgroundColor: kTileBg,
+                                          onPressed: () => sendReply(q),
+                                        ),
+                                      )).toList(),
+                                    ),
+                                  ),
+
+                                  // Composer
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: replyCtrl,
+                                          style: const TextStyle(fontSize: 14, color: kTextDark),
+                                          decoration: InputDecoration(
+                                            hintText: 'Type reply...',
+                                            filled: true,
+                                            fillColor: kSurfaceWhite,
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                          ),
+                                          onSubmitted: (val) => sendReply(val),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton.filled(
+                                        icon: const Icon(Icons.send_rounded, size: 20),
+                                        onPressed: () => sendReply(replyCtrl.text),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              )),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

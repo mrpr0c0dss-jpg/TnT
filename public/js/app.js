@@ -549,6 +549,9 @@ function setupIntervalPoll() {
     STATE.refreshWallet();
     updateLiveCountdowns();
   }, 10000);
+
+  // Initialize Admin Live Support notifications & audio alerts
+  initAdminChatNotifications();
 }
 
 // ------------------------------------------------------------------
@@ -2238,9 +2241,69 @@ function filterCatalogByPill(category, btn) {
 window.filterCatalogByPill = filterCatalogByPill;
 
 // ==============================================================
-// PROPER LIVE CHAT & BOTTOM NAV ACTIONS (Matching Reference Store)
+// PROPER LIVE CHAT & BOTTOM NAV ACTIONS (Two-Way Live Support Chat)
 // ==============================================================
 let liveChatOpen = false;
+let customerChatPollTimer = null;
+let customerChatLastMsgId = null;
+
+async function loadCustomerChatHistory() {
+  const container = document.getElementById('chat-messages-container');
+  if (!container) return;
+  const user = STATE.currentUser;
+  const userId = user?.id || 'usr_player1';
+
+  try {
+    const res = await API.getChatThreadMessages(userId);
+    const messages = res.messages || [];
+    if (messages.length > 0) {
+      // Find chips
+      const chipsEl = container.querySelector('.chat-quick-chips');
+      container.innerHTML = `
+        <div class="chat-timestamp">Active Session</div>
+        <div class="chat-msg incoming">
+          <div class="chat-bubble">
+            👋 Welcome to <strong>TnT Gaming Live Support</strong>. Our support agents are active 24/7.
+          </div>
+        </div>
+      `;
+
+      messages.forEach(m => {
+        const isOutgoing = m.sender_id === userId || m.sender_role === 'player';
+        const msgEl = document.createElement('div');
+        msgEl.className = `chat-msg ${isOutgoing ? 'outgoing' : 'incoming'}`;
+        const senderBadge = !isOutgoing ? `<div style="font-size:0.68rem; font-weight:800; color:var(--cyan); margin-bottom:2px;">🛡️ TnT Support Desk</div>` : '';
+        msgEl.innerHTML = `<div class="chat-bubble">${senderBadge}${escapeHtml(m.message)}</div>`;
+        container.appendChild(msgEl);
+      });
+
+      if (chipsEl) container.appendChild(chipsEl);
+      container.scrollTop = container.scrollHeight;
+      customerChatLastMsgId = messages[messages.length - 1]?.id;
+    }
+  } catch (err) {
+    console.warn('Customer chat fetch error:', err);
+  }
+}
+
+async function pollCustomerChat() {
+  if (!liveChatOpen) return;
+  const user = STATE.currentUser;
+  const userId = user?.id || 'usr_player1';
+
+  try {
+    const res = await API.getChatThreadMessages(userId);
+    const messages = res.messages || [];
+    if (messages.length > 0) {
+      const latest = messages[messages.length - 1];
+      if (customerChatLastMsgId && latest.id !== customerChatLastMsgId && latest.sender_role !== 'player') {
+        appendChatMessage(`🛡️ <strong>TnT Staff:</strong> ${escapeHtml(latest.message)}`, 'incoming');
+        customerChatLastMsgId = latest.id;
+        playAdminChatChime();
+      }
+    }
+  } catch (e) {}
+}
 
 function toggleLiveChatWidget(forceState) {
   const widget = document.getElementById('live-chat-widget');
@@ -2254,6 +2317,15 @@ function toggleLiveChatWidget(forceState) {
   if (liveChatOpen) {
     const input = document.getElementById('chat-input-text');
     if (input) setTimeout(() => input.focus(), 150);
+    loadCustomerChatHistory();
+    if (!customerChatPollTimer) {
+      customerChatPollTimer = setInterval(pollCustomerChat, 4000);
+    }
+  } else {
+    if (customerChatPollTimer) {
+      clearInterval(customerChatPollTimer);
+      customerChatPollTimer = null;
+    }
   }
 }
 window.toggleLiveChatWidget = toggleLiveChatWidget;
@@ -2271,16 +2343,19 @@ function appendChatMessage(text, type = 'incoming') {
 function handleQuickChatQuery(type) {
   if (type === 'topup_status') {
     appendChatMessage('⚡ Where is my top-up / what is the delivery time?', 'outgoing');
+    API.sendChatMessage({ message: 'Where is my top-up / what is the delivery time?' }).catch(() => {});
     setTimeout(() => {
       appendChatMessage('⚡ Direct top-ups arrive in under <strong>60-90 seconds</strong> via publisher APIs! You can track your double-entry receipt and transaction status anytime in your Wallet tab.<br><br><button class="btn btn-sm btn-orange" onclick="switchTab(\'wallet\'); toggleLiveChatWidget(false);" style="margin-top: 6px;">View My Orders →</button>');
     }, 400);
   } else if (type === 'player_id') {
     appendChatMessage('🎮 How do I find my Player ID / Zone ID?', 'outgoing');
+    API.sendChatMessage({ message: 'How do I find my Player ID / Zone ID?' }).catch(() => {});
     setTimeout(() => {
       appendChatMessage('🎮 <strong>PUBG Mobile</strong>: tap avatar in game top-left (numeric ID).<br><strong>Free Fire</strong>: profile page ID under your IGN.<br><strong>MLBB</strong>: User ID (8-10 digits) + Zone ID (in parentheses).<br><br><button class="btn btn-sm btn-primary" onclick="openUidHelperModal();" style="margin-top: 6px;">Open Visual UID Guide →</button>');
     }, 400);
   } else if (type === 'tournament_help') {
     appendChatMessage('🏆 Where are my tournament room credentials?', 'outgoing');
+    API.sendChatMessage({ message: 'Where are my tournament room credentials?' }).catch(() => {});
     setTimeout(() => {
       appendChatMessage('🏆 For anti-cheat safety, custom room IDs & passwords unlock <strong>exactly 15 minutes before match start</strong> inside the <strong>My Matches</strong> tab for registered players.<br><br><button class="btn btn-sm btn-primary" onclick="switchTab(\'matches\'); toggleLiveChatWidget(false);" style="margin-top: 6px;">Check My Matches →</button>');
     }, 400);
@@ -2288,26 +2363,39 @@ function handleQuickChatQuery(type) {
 }
 window.handleQuickChatQuery = handleQuickChatQuery;
 
-function handleSendChatMessage(e) {
+async function handleSendChatMessage(e) {
   if (e) e.preventDefault();
   const input = document.getElementById('chat-input-text');
   if (!input) return;
   const text = (input.value || '').trim();
   if (!text) return;
 
-  appendChatMessage(text, 'outgoing');
+  appendChatMessage(escapeHtml(text), 'outgoing');
   input.value = '';
+
+  const user = STATE.currentUser;
+  const userId = user?.id || 'usr_player1';
+
+  try {
+    await API.sendChatMessage({
+      message: text,
+      threadId: userId,
+      recipientId: 'admin'
+    });
+  } catch (err) {
+    console.warn('Failed to send chat to backend:', err);
+  }
 
   setTimeout(() => {
     const lower = text.toLowerCase();
     if (lower.includes('topup') || lower.includes('diamond') || lower.includes('uc') || lower.includes('delivery')) {
-      appendChatMessage('⚡ Top-ups are dispatched instantly! If your transaction reference is confirmed on eSewa/Khalti, server diamonds land within 90s. If you need manual reconciliation, tap below to chat with an officer on WhatsApp.');
+      appendChatMessage('⚡ <em>TnT Assistant:</em> Direct top-ups arrive in under <strong>60-90 seconds</strong> via publisher APIs! If your transaction reference is confirmed on eSewa/Khalti, server diamonds land directly.');
     } else if (lower.includes('tourn') || lower.includes('room') || lower.includes('pass')) {
-      appendChatMessage('🏆 Room IDs & passwords appear in your <strong>My Matches</strong> tab 15 mins prior to game start.');
+      appendChatMessage('🏆 <em>TnT Assistant:</em> Room IDs & passwords appear in your <strong>My Matches</strong> tab 15 mins prior to game start.');
     } else if (lower.includes('refund') || lower.includes('cancel') || lower.includes('money')) {
-      appendChatMessage('💳 Canceled tournaments or failed top-ups credit 100% of funds back into your platform wallet balance instantly.');
+      appendChatMessage('💳 <em>TnT Assistant:</em> Canceled tournaments or failed top-ups credit 100% of funds back into your platform wallet balance instantly.');
     } else {
-      appendChatMessage('👋 Thank you for messaging! A support officer has received your note. For instant 1-on-1 human assistance, you can also tap below to chat directly on WhatsApp.');
+      appendChatMessage('👋 <em>TnT Assistant:</em> Thank you for messaging! A support officer has received your notification and will answer right here.');
     }
   }, 500);
 }
@@ -5406,6 +5494,15 @@ async function renderAdminView(container) {
             </span>
           </button>
 
+          <div class="admin-nav-group-title">LIVE OPS &amp; SUPPORT</div>
+          <button class="admin-sidebar-link ${STATE.adminSubTab === 'live_chat' ? 'active' : ''}" data-subtab="live_chat" onclick="switchAdminSubTab('live_chat')">
+            <span class="admin-link-content">
+              <span class="admin-link-icon">💬</span>
+              <span>Live Support Chat</span>
+            </span>
+            <span class="admin-badge-count" id="admin-chat-unread-badge" style="display: none; background: #FF4757; color: white;">0</span>
+          </button>
+
           <div class="admin-nav-group-title">SECURITY &amp; COMPLIANCE</div>
           <button class="admin-sidebar-link ${STATE.adminSubTab === 'users' ? 'active' : ''}" data-subtab="users" onclick="switchAdminSubTab('users')">
             <span class="admin-link-content">
@@ -5470,6 +5567,9 @@ async function renderAdminView(container) {
             <div class="admin-security-tag">
               <span class="sec-dot"></span> Double-Entry Escrow Active
             </div>
+            <button class="btn btn-sm btn-secondary" id="admin-topbar-chat-btn" onclick="switchAdminSubTab('live_chat')" title="Customer Live Support Chat" style="position: relative;">
+              💬 Chat <span class="badge" id="admin-topbar-chat-badge" style="display: none; background: #FF4757; color: #fff; border-radius: 999px; padding: 1px 6px; font-size: 0.7rem; margin-left: 4px;">0</span>
+            </button>
             <button class="btn btn-sm btn-secondary" onclick="switchAdminSubTab('webhook')" title="Open Webhook Simulator">
               ⚡ Webhook Test
             </button>
@@ -5519,6 +5619,7 @@ async function renderAdminSubTab() {
   if (crumbEl) {
     const titles = {
       'overview': 'Overview & KPIs',
+      'live_chat': 'Live Support Chat Desk & Real-Time Inquiries',
       'games_catalog': 'Games & Top-Up Catalog Operations',
       'ai_subscriptions': 'AI Subscriptions & Workspaces',
       'verification': 'Payment Verification & Escrow',
@@ -5536,6 +5637,9 @@ async function renderAdminSubTab() {
   switch (STATE.adminSubTab) {
     case 'overview':
       await renderAdminOverviewSubTab(container);
+      break;
+    case 'live_chat':
+      await renderAdminLiveChatSubTab(container);
       break;
     case 'games_catalog':
       await renderAdminGamesSubTab(container);
@@ -7337,8 +7441,491 @@ async function adminAutoGenerateKeys() {
 }
 window.adminAutoGenerateKeys = adminAutoGenerateKeys;
 
+// ==================================================================
+// ADMIN LIVE SUPPORT CHAT DESK & REAL-TIME NOTIFICATIONS
+// ==================================================================
+let adminChatAudioCtx = null;
+let lastKnownAdminUnreadCount = 0;
+let adminChatPollInterval = null;
+
+const ADMIN_CHAT_STATE = {
+  selectedUserId: null,
+  searchQuery: '',
+  filter: 'ALL',
+  threads: [],
+  activeConversation: null,
+  isSending: false
+};
+window.ADMIN_CHAT_STATE = ADMIN_CHAT_STATE;
+
+function playAdminChatChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!adminChatAudioCtx) {
+      adminChatAudioCtx = new AudioCtx();
+    }
+    if (adminChatAudioCtx.state === 'suspended') {
+      adminChatAudioCtx.resume();
+    }
+    const now = adminChatAudioCtx.currentTime;
+
+    // Harmonic two-tone notification chime (D5 587.33Hz -> A5 880.00Hz)
+    const osc1 = adminChatAudioCtx.createOscillator();
+    const gain1 = adminChatAudioCtx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0.12, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+    osc1.connect(gain1);
+    gain1.connect(adminChatAudioCtx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.16);
+
+    const osc2 = adminChatAudioCtx.createOscillator();
+    const gain2 = adminChatAudioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880.00, now + 0.10);
+    gain2.gain.setValueAtTime(0.14, now + 0.10);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc2.connect(gain2);
+    gain2.connect(adminChatAudioCtx.destination);
+    osc2.start(now + 0.10);
+    osc2.stop(now + 0.35);
+  } catch (err) {
+    // Audio autoplay restrictions gracefully handled
+  }
+}
+window.playAdminChatChime = playAdminChatChime;
+
+async function checkAdminChatNotifications() {
+  const user = STATE.currentUser;
+  if (!user || user.role === 'player' || user.role === 'guest') return;
+
+  try {
+    const data = await API.getChatUnreadCount();
+    const count = data.unreadCount || 0;
+
+    // Update unread count badges across console
+    const sidebarBadge = document.getElementById('admin-chat-unread-badge');
+    if (sidebarBadge) {
+      sidebarBadge.textContent = count;
+      sidebarBadge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+    const topbarBadge = document.getElementById('admin-topbar-chat-badge');
+    if (topbarBadge) {
+      topbarBadge.textContent = count;
+      topbarBadge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+
+    if (count > lastKnownAdminUnreadCount) {
+      playAdminChatChime();
+      const sender = data.latestMessage?.sender_name || 'Player';
+      const msgSnippet = data.latestMessage?.message || 'New live chat inquiry received';
+      Toast.show(`💬 Live Support Inquiry: ${sender}: "${msgSnippet.length > 50 ? msgSnippet.slice(0, 50) + '...' : msgSnippet}"`, 'info');
+
+      if (STATE.currentTab === 'admin' && STATE.adminSubTab === 'live_chat') {
+        await refreshAdminLiveChatThreads(false);
+      }
+    }
+    lastKnownAdminUnreadCount = count;
+  } catch (e) {
+    // Network retry on next interval
+  }
+}
+window.checkAdminChatNotifications = checkAdminChatNotifications;
+
+function initAdminChatNotifications() {
+  if (adminChatPollInterval) clearInterval(adminChatPollInterval);
+  checkAdminChatNotifications();
+  adminChatPollInterval = setInterval(checkAdminChatNotifications, 5000);
+}
+window.initAdminChatNotifications = initAdminChatNotifications;
+
+function setAdminChatFilter(f) {
+  ADMIN_CHAT_STATE.filter = f;
+  renderAdminSubTab();
+}
+window.setAdminChatFilter = setAdminChatFilter;
+
+function handleAdminChatSearch(q) {
+  ADMIN_CHAT_STATE.searchQuery = q;
+  const listEl = document.getElementById('admin-chat-threads-list-wrap');
+  if (listEl) {
+    listEl.innerHTML = renderAdminChatThreadsListHtml();
+  }
+}
+window.handleAdminChatSearch = handleAdminChatSearch;
+
+function insertAdminChatQuickResponse(text) {
+  const input = document.getElementById('admin-chat-input-field');
+  if (input) {
+    input.value = text;
+    input.focus();
+  }
+}
+window.insertAdminChatQuickResponse = insertAdminChatQuickResponse;
+
+async function selectAdminChatThread(userId) {
+  ADMIN_CHAT_STATE.selectedUserId = userId;
+  await renderAdminSubTab();
+  // Reset unread count after opening thread
+  checkAdminChatNotifications();
+}
+window.selectAdminChatThread = selectAdminChatThread;
+
+async function refreshAdminLiveChatThreads(fullReRender = true) {
+  try {
+    const res = await API.getChatThreads();
+    ADMIN_CHAT_STATE.threads = res.threads || [];
+    if (fullReRender) {
+      await renderAdminSubTab();
+    } else {
+      const listEl = document.getElementById('admin-chat-threads-list-wrap');
+      if (listEl) listEl.innerHTML = renderAdminChatThreadsListHtml();
+
+      // If viewing active thread, refresh messages
+      if (ADMIN_CHAT_STATE.selectedUserId) {
+        const conv = await API.getChatThreadMessages(ADMIN_CHAT_STATE.selectedUserId);
+        ADMIN_CHAT_STATE.activeConversation = conv;
+        const msgArea = document.getElementById('admin-chat-messages-viewport');
+        if (msgArea) {
+          msgArea.innerHTML = renderAdminChatMessagesHtml(conv.messages || []);
+          msgArea.scrollTop = msgArea.scrollHeight;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error refreshing live chat threads:', err);
+  }
+}
+window.refreshAdminLiveChatThreads = refreshAdminLiveChatThreads;
+
+function renderAdminChatThreadsListHtml() {
+  let list = ADMIN_CHAT_STATE.threads || [];
+  if (ADMIN_CHAT_STATE.filter === 'UNREAD') {
+    list = list.filter(t => t.unread_count > 0);
+  }
+  if (ADMIN_CHAT_STATE.searchQuery) {
+    const q = ADMIN_CHAT_STATE.searchQuery.toLowerCase();
+    list = list.filter(t =>
+      (t.display_name || '').toLowerCase().includes(q) ||
+      (t.user_id || '').toLowerCase().includes(q) ||
+      (t.last_message || '').toLowerCase().includes(q)
+    );
+  }
+
+  if (list.length === 0) {
+    return `
+      <div style="padding: 2.5rem 1rem; text-align: center; color: var(--secondary-text); font-size: 0.82rem;">
+        <div style="font-size: 1.8rem; margin-bottom: 0.5rem; opacity: 0.5;">💬</div>
+        No customer inquiries found.
+      </div>
+    `;
+  }
+
+  return list.map(t => {
+    const isActive = t.user_id === ADMIN_CHAT_STATE.selectedUserId;
+    const timeStr = t.last_message_at ? new Date(t.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    return `
+      <button class="admin-chat-thread-card ${isActive ? 'active' : ''}" onclick="selectAdminChatThread('${t.user_id}')">
+        <div class="thread-avatar-wrap">
+          <img class="thread-avatar" src="${t.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${t.user_id}`}" alt="${escapeHtml(t.display_name)}" />
+          <span class="thread-status-dot"></span>
+        </div>
+        <div class="thread-content">
+          <div class="thread-top-line">
+            <span class="thread-user-name">${escapeHtml(t.display_name)}</span>
+            <span class="thread-time">${timeStr}</span>
+          </div>
+          <div class="thread-snippet-line">
+            <span class="thread-snippet">
+              ${t.last_sender_role === 'admin' ? '<strong style="color:var(--cyan);">You: </strong>' : ''}${escapeHtml(t.last_message || 'Inquiry opened')}
+            </span>
+            ${t.unread_count > 0 ? `<span class="thread-unread-pill">${t.unread_count}</span>` : ''}
+          </div>
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderAdminChatMessagesHtml(messages) {
+  if (!messages || messages.length === 0) {
+    return `
+      <div style="margin: auto; text-align: center; color: var(--secondary-text);">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">👋</div>
+        <div style="font-weight: 700; font-size: 1rem; color: var(--primary-text);">Start Customer Support</div>
+        <div style="font-size: 0.82rem; margin-top: 0.25rem;">Type a message below to assist the player directly.</div>
+      </div>
+    `;
+  }
+
+  return messages.map(m => {
+    const isOut = m.sender_role === 'admin';
+    const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    return `
+      <div class="admin-bubble-wrap ${isOut ? 'outgoing' : 'incoming'}">
+        <div class="admin-bubble-sender">
+          ${isOut ? '🛡️ TnT Operations Support' : escapeHtml(m.sender_name || 'Customer')}
+        </div>
+        <div class="admin-chat-bubble">
+          ${escapeHtml(m.message)}
+        </div>
+        <div class="admin-bubble-time">${timeStr}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function renderAdminLiveChatSubTab(container) {
+  // Fetch latest threads
+  try {
+    const res = await API.getChatThreads();
+    ADMIN_CHAT_STATE.threads = res.threads || [];
+  } catch (err) {
+    ADMIN_CHAT_STATE.threads = [];
+  }
+
+  // Pick first thread if none currently selected
+  if (!ADMIN_CHAT_STATE.selectedUserId && ADMIN_CHAT_STATE.threads.length > 0) {
+    // Prefer thread with unread count
+    const unreadThread = ADMIN_CHAT_STATE.threads.find(t => t.unread_count > 0);
+    ADMIN_CHAT_STATE.selectedUserId = unreadThread ? unreadThread.user_id : ADMIN_CHAT_STATE.threads[0].user_id;
+  }
+
+  // Fetch active conversation if thread selected
+  let conv = { messages: [], targetUser: null, latestOrder: null };
+  if (ADMIN_CHAT_STATE.selectedUserId) {
+    try {
+      conv = await API.getChatThreadMessages(ADMIN_CHAT_STATE.selectedUserId);
+      ADMIN_CHAT_STATE.activeConversation = conv;
+    } catch (err) {
+      console.warn('Failed to load thread conversation:', err);
+    }
+  }
+
+  const activeThread = ADMIN_CHAT_STATE.threads.find(t => t.user_id === ADMIN_CHAT_STATE.selectedUserId);
+  const targetUser = conv.targetUser || activeThread || { display_name: 'Customer', id: ADMIN_CHAT_STATE.selectedUserId || '' };
+  const latestOrder = conv.latestOrder;
+
+  container.innerHTML = `
+    <div>
+      <!-- Page Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h2 style="font-family: var(--font-display); font-size: 1.45rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.25rem;">
+            💬 Live Support Chat Operations Desk
+          </h2>
+          <p style="font-size: 0.85rem; color: var(--secondary-text); margin: 0;">
+            Real-time customer inquiries, automated publisher order context, and instant dual-entry support.
+          </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button class="btn btn-sm btn-secondary" onclick="playAdminChatChime()" title="Test Audio Chime">
+            🔔 Test Chime
+          </button>
+          <button class="btn btn-sm btn-outline-cyan" onclick="refreshAdminLiveChatThreads(true)">
+            🔄 Refresh Desk
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Live Chat Workbench Desk -->
+      <div class="admin-chat-desk">
+        <!-- Left Pane: Threads Sidebar -->
+        <div class="admin-chat-threads-pane">
+          <div class="admin-chat-threads-header">
+            <div class="admin-chat-threads-title">
+              <span>Customer Inquiries</span>
+              <span class="badge" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan); font-size: 0.72rem; padding: 2px 7px;">
+                ${ADMIN_CHAT_STATE.threads.length} Threads
+              </span>
+            </div>
+            <input
+              type="text"
+              class="admin-chat-search-input"
+              placeholder="Search player name, ID or message..."
+              value="${escapeHtml(ADMIN_CHAT_STATE.searchQuery)}"
+              oninput="handleAdminChatSearch(this.value)"
+            />
+            <div style="display: flex; gap: 0.4rem; margin-top: 0.65rem;">
+              <button
+                class="btn btn-xs ${ADMIN_CHAT_STATE.filter === 'ALL' ? 'btn-primary' : 'btn-secondary'}"
+                style="flex: 1; padding: 0.25rem 0.5rem; font-size: 0.72rem;"
+                onclick="setAdminChatFilter('ALL')"
+              >
+                All
+              </button>
+              <button
+                class="btn btn-xs ${ADMIN_CHAT_STATE.filter === 'UNREAD' ? 'btn-orange' : 'btn-secondary'}"
+                style="flex: 1; padding: 0.25rem 0.5rem; font-size: 0.72rem;"
+                onclick="setAdminChatFilter('UNREAD')"
+              >
+                Unread Only
+              </button>
+            </div>
+          </div>
+
+          <div class="admin-chat-threads-list" id="admin-chat-threads-list-wrap">
+            ${renderAdminChatThreadsListHtml()}
+          </div>
+        </div>
+
+        <!-- Right Pane: Active Conversation & Context -->
+        <div class="admin-chat-main-pane">
+          ${ADMIN_CHAT_STATE.selectedUserId ? `
+            <!-- Customer Context Bar -->
+            <div class="admin-chat-context-header">
+              <div class="chat-context-user-info">
+                <img
+                  class="chat-context-avatar"
+                  src="${targetUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUser.id}`}"
+                  alt="${escapeHtml(targetUser.display_name)}"
+                />
+                <div>
+                  <div class="chat-context-name">${escapeHtml(targetUser.display_name)}</div>
+                  <div class="chat-context-meta">
+                    <span>UID: <strong style="color:var(--cyan);">${escapeHtml(targetUser.id)}</strong></span>
+                    ${targetUser.email ? `<span>• ${escapeHtml(targetUser.email)}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+
+              <div class="chat-context-badges">
+                <div class="chat-kpi-pill kpi-wallet" title="Real-Time Player Wallet Balance">
+                  <span>💰 Balance:</span>
+                  <span>${formatLocalizedPrice(targetUser.wallet_balance || 0)}</span>
+                </div>
+                ${latestOrder ? `
+                  <div class="chat-kpi-pill kpi-order" title="Latest In-Game Order Status">
+                    <span>💎 ${escapeHtml(latestOrder.game_name || 'Top-Up')}:</span>
+                    <span>${escapeHtml(latestOrder.package_name || '')} (${escapeHtml(latestOrder.status)})</span>
+                  </div>
+                ` : `
+                  <div class="chat-kpi-pill" style="color: var(--secondary-text);">
+                    <span>💎 No active order</span>
+                  </div>
+                `}
+                <button
+                  class="btn btn-xs btn-outline-cyan"
+                  onclick="window.open('https://wa.me/9779800000000?text=Hello%20${encodeURIComponent(targetUser.display_name)}%2C%20this%20is%20TnT%20Operations%20Support.', '_blank')"
+                  title="Open WhatsApp message with player"
+                >
+                  💬 WhatsApp
+                </button>
+              </div>
+            </div>
+
+            <!-- Messages Viewport -->
+            <div class="admin-chat-messages-area" id="admin-chat-messages-viewport">
+              ${renderAdminChatMessagesHtml(conv.messages || [])}
+            </div>
+
+            <!-- Quick Response Action Chips -->
+            <div class="admin-quick-reply-strip">
+              <button class="admin-quick-chip" onclick="insertAdminChatQuickResponse('⚡ Diamonds dispatched via Publisher API! Please check in-game mailbox in 60s.')">
+                ⚡ Diamonds Dispatched
+              </button>
+              <button class="admin-quick-chip" onclick="insertAdminChatQuickResponse('💳 Deposit verified and balance credited to your platform wallet!')">
+                💳 Deposit Verified
+              </button>
+              <button class="admin-quick-chip" onclick="insertAdminChatQuickResponse('🎮 Please provide your In-Game UID & Zone ID screenshot for verification.')">
+                🎮 Ask for UID Proof
+              </button>
+              <button class="admin-quick-chip" onclick="insertAdminChatQuickResponse('🏆 Tournament room ID & password are now live in your My Matches tab.')">
+                🏆 Room Password Live
+              </button>
+              <button class="admin-quick-chip" onclick="insertAdminChatQuickResponse('🛡️ Transaction verified and confirmed. Happy gaming!')">
+                🛡️ All Verified
+              </button>
+            </div>
+
+            <!-- Composer Form -->
+            <form class="admin-chat-composer" onsubmit="handleAdminChatSend(event)">
+              <input
+                type="text"
+                id="admin-chat-input-field"
+                class="admin-chat-input"
+                placeholder="Type reply to ${escapeHtml(targetUser.display_name)}... (Press Enter to send)"
+                autocomplete="off"
+              />
+              <button type="submit" id="admin-chat-send-btn" class="admin-chat-send-btn">
+                <span>Send Reply</span>
+                <span>➤</span>
+              </button>
+            </form>
+          ` : `
+            <div style="margin: auto; text-align: center; color: var(--secondary-text); padding: 3rem;">
+              <div style="font-size: 3rem; margin-bottom: 0.75rem;">💬</div>
+              <h3 style="color: var(--primary-text); margin-bottom: 0.5rem;">Select an Inquiry</h3>
+              <p style="font-size: 0.88rem; max-width: 360px; margin: 0 auto;">
+                Choose a customer conversation from the left to view customer account details, orders, and send instant live replies.
+              </p>
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Auto-scroll messages to bottom
+  const viewport = document.getElementById('admin-chat-messages-viewport');
+  if (viewport) {
+    viewport.scrollTop = viewport.scrollHeight;
+  }
+}
+window.renderAdminLiveChatSubTab = renderAdminLiveChatSubTab;
+
+async function handleAdminChatSend(e) {
+  if (e) e.preventDefault();
+  const input = document.getElementById('admin-chat-input-field');
+  const sendBtn = document.getElementById('admin-chat-send-btn');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text) return;
+
+  const recipientId = ADMIN_CHAT_STATE.selectedUserId;
+  if (!recipientId) return;
+
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const res = await API.sendChatMessage({
+      message: text,
+      recipientId: recipientId
+    });
+
+    input.value = '';
+
+    // Append to local messages viewport immediately
+    const viewport = document.getElementById('admin-chat-messages-viewport');
+    if (viewport) {
+      const bubbleEl = document.createElement('div');
+      bubbleEl.className = 'admin-bubble-wrap outgoing';
+      bubbleEl.innerHTML = `
+        <div class="admin-bubble-sender">🛡️ TnT Operations Support</div>
+        <div class="admin-chat-bubble">${escapeHtml(text)}</div>
+        <div class="admin-bubble-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      `;
+      viewport.appendChild(bubbleEl);
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    // Refresh threads preview
+    await refreshAdminLiveChatThreads(false);
+  } catch (err) {
+    Toast.show('Failed to send reply: ' + err.message, 'error');
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+    input.focus();
+  }
+}
+window.handleAdminChatSend = handleAdminChatSend;
+
 // ------------------------------------------------------------------
 // ADMIN GAMES & TOP-UP CATALOG OPERATIONS (Full Admin Control)
+
 // ------------------------------------------------------------------
 const ADMIN_GAMES_VIEW = {
   search: '',

@@ -405,6 +405,52 @@ async function runTests() {
     assert.strictEqual(ledgerEntry.type, 'DEPOSIT');
   });
 
+  await test('Live Support Chat: Player sends inquiry, Admin receives unread notification count, inspects thread, and sends reply', async () => {
+    // 1. Player1 sends a message to support
+    const sendRes = await runMockRequest('POST', '/api/chat/send', { 'x-auth-token': 'usr_player1' }, {
+      message: 'Hello, need help checking my latest Free Fire diamond package status!'
+    });
+    assert.strictEqual(sendRes.status, 200);
+    assert.strictEqual(sendRes.data.sender_role, 'player');
+    assert.strictEqual(sendRes.data.recipient_id, 'admin');
+
+    // 2. Admin checks unread notification count
+    const unreadRes = await runMockRequest('GET', '/api/chat/unread-count', { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(unreadRes.status, 200);
+    assert.ok(unreadRes.data.unreadCount >= 1);
+    assert.ok(unreadRes.data.latestMessage);
+
+    // 3. Admin lists chat threads
+    const threadsRes = await runMockRequest('GET', '/api/chat/threads', { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(threadsRes.status, 200);
+    assert.ok(Array.isArray(threadsRes.data));
+    const playerThread = threadsRes.data.find(t => t.user_id === 'usr_player1');
+    assert.ok(playerThread, 'Player1 thread should be present in admin chat list');
+    assert.strictEqual(playerThread.user_name, 'Phoenix_Ace');
+
+    // 4. Admin opens conversation thread (which marks unread as read)
+    const threadDetailsRes = await runMockRequest('GET', '/api/chat/threads/usr_player1', { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(threadDetailsRes.status, 200);
+    assert.ok(threadDetailsRes.data.messages.length >= 2);
+    assert.ok(threadDetailsRes.data.user);
+
+    // 5. Admin sends a reply back to Player1
+    const replyRes = await runMockRequest('POST', '/api/chat/send', { 'x-auth-token': 'usr_admin' }, {
+      targetUserId: 'usr_player1',
+      message: 'Hello Aarav! Your Free Fire diamond package was successfully delivered to your UID.'
+    });
+    assert.strictEqual(replyRes.status, 200);
+    assert.strictEqual(replyRes.data.sender_role, 'admin');
+    assert.strictEqual(replyRes.data.recipient_id, 'usr_player1');
+
+    // 6. Player checks their conversation and sees admin reply
+    const playerChatRes = await runMockRequest('GET', '/api/chat/threads/usr_player1', { 'x-auth-token': 'usr_player1' });
+    assert.strictEqual(playerChatRes.status, 200);
+    const lastMsg = playerChatRes.data.messages[playerChatRes.data.messages.length - 1];
+    assert.strictEqual(lastMsg.sender_role, 'admin');
+    assert.strictEqual(lastMsg.message, 'Hello Aarav! Your Free Fire diamond package was successfully delivered to your UID.');
+  });
+
   console.log(`\n========================================`);
   console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log(`========================================\n`);

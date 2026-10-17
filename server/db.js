@@ -256,7 +256,25 @@ function initSchema() {
       assigned_order_id TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS support_chat_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      sender_id TEXT NOT NULL REFERENCES users(id),
+      sender_role TEXT NOT NULL DEFAULT 'player',
+      sender_name TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      message TEXT NOT NULL,
+      attachment_url TEXT DEFAULT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
   `);
+
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_thread ON support_chat_messages(thread_id, created_at);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_recipient ON support_chat_messages(recipient_id, is_read);`);
+  } catch (e) {}
 
   try {
     db.exec(`ALTER TABLE topup_games ADD COLUMN external_url TEXT DEFAULT NULL;`);
@@ -1147,16 +1165,45 @@ function seedRobloxIfEmpty() {
   }
 }
 
+function ensureSupportChatSeeded() {
+  try {
+    const existing = db.prepare('SELECT COUNT(*) as count FROM support_chat_messages').get();
+    if (existing && existing.count > 0) return;
+
+    const insert = db.prepare(`
+      INSERT INTO support_chat_messages (id, thread_id, sender_id, sender_role, sender_name, recipient_id, message, attachment_url, is_read, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = Date.now();
+    const formatTime = (offsetMs) => new Date(now - offsetMs).toISOString();
+
+    // Thread 1: usr_player1 (Aarav Sharma)
+    insert.run('msg_seed_1', 'thread_usr_player1', 'usr_player1', 'player', 'Aarav Sharma', 'admin', 'Hi! I just sent $25 via eSewa QR for wallet deposit. Ref #DEP-772911. Can you please check?', null, 1, formatTime(1800000));
+    insert.run('msg_seed_2', 'thread_usr_player1', 'usr_admin', 'admin', 'Aegis Admin', 'usr_player1', 'Hello Aarav! Checking your payment receipt right now. One moment please.', null, 1, formatTime(1500000));
+    insert.run('msg_seed_3', 'thread_usr_player1', 'usr_player1', 'player', 'Aarav Sharma', 'admin', 'Thank you! Also want to make sure I am confirmed in the Free Fire tournament squad.', null, 0, formatTime(300000));
+
+    // Thread 2: usr_player2 (Priya Thapa)
+    insert.run('msg_seed_4', 'thread_usr_player2', 'usr_player2', 'player', 'Priya Thapa', 'admin', 'Hello support, where can I see the custom room password for tonight\'s MLBB match?', null, 1, formatTime(3600000));
+    insert.run('msg_seed_5', 'thread_usr_player2', 'usr_admin', 'admin', 'Aegis Admin', 'usr_player2', 'Room IDs & passwords automatically unlock 15 minutes before match start in your "My Matches" tab!', null, 1, formatTime(3300000));
+    insert.run('msg_seed_6', 'thread_usr_player2', 'usr_player2', 'player', 'Priya Thapa', 'admin', 'Got it, thank you for quick help! 🔥', null, 0, formatTime(120000));
+  } catch (e) {
+    console.warn('Chat seed warning:', e.message);
+  }
+}
+
 initSchema();
 seedDatabase();
 seedAiSubscriptionsIfEmpty();
 seedRobloxIfEmpty();
 ensureMasterAdmins();
+ensureSupportChatSeeded();
 
 module.exports = {
   db,
   initSchema,
   seedAiSubscriptionsIfEmpty,
   seedRobloxIfEmpty,
-  ensureMasterAdmins
+  ensureMasterAdmins,
+  ensureSupportChatSeeded
 };

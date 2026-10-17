@@ -289,6 +289,23 @@ const API = {
   },
   deleteAdminPackage(id) {
     return this.request(`/api/admin/topup-packages/${id}`, { method: 'DELETE' });
+  },
+
+  // Live Support Chat
+  getChatUnreadCount() {
+    return this.request('/api/chat/unread-count');
+  },
+  getChatThreads() {
+    return this.request('/api/chat/threads');
+  },
+  getChatThreadMessages(userId) {
+    return this.request(`/api/chat/threads/${userId}`);
+  },
+  sendChatMessage(data) {
+    return this.request('/api/chat/send', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
   }
 };
 

@@ -1678,4 +1678,142 @@ class ApiService {
       _mockAdminAuditLogs.removeLast();
     }
   }
+
+  // ------------------------------------------------------------------
+  // LIVE SUPPORT CHAT (Real-Time Inquiries & Notifications)
+  // ------------------------------------------------------------------
+  final List<Map<String, dynamic>> _mockChatThreads = [
+    {
+      'user_id': 'usr_player1',
+      'display_name': 'Aarav Sharma',
+      'email': 'aarav.gamer@gmail.com',
+      'avatar': 'https://api.dicebear.com/7.x/bottts/svg?seed=usr_player1',
+      'wallet_balance': 450.00,
+      'last_message': 'Where is my Free Fire 100 Diamonds top-up?',
+      'last_message_at': '5m ago',
+      'last_sender_role': 'player',
+      'unread_count': 1,
+    },
+    {
+      'user_id': 'usr_player2',
+      'display_name': 'Priya Thapa',
+      'email': 'priya.thapa@gmail.com',
+      'avatar': 'https://api.dicebear.com/7.x/bottts/svg?seed=usr_player2',
+      'wallet_balance': 1200.00,
+      'last_message': 'Is the PUBG Mobile UC discount still active for today?',
+      'last_message_at': '24m ago',
+      'last_sender_role': 'player',
+      'unread_count': 1,
+    },
+  ];
+
+  final Map<String, List<Map<String, dynamic>>> _mockChatMessages = {
+    'usr_player1': [
+      {
+        'id': 'msg_01',
+        'thread_id': 'usr_player1',
+        'sender_id': 'usr_player1',
+        'sender_role': 'player',
+        'sender_name': 'Aarav Sharma',
+        'message': 'Where is my Free Fire 100 Diamonds top-up?',
+        'created_at': '5m ago',
+        'is_read': 0,
+      }
+    ],
+    'usr_player2': [
+      {
+        'id': 'msg_02',
+        'thread_id': 'usr_player2',
+        'sender_id': 'usr_player2',
+        'sender_role': 'player',
+        'sender_name': 'Priya Thapa',
+        'message': 'Is the PUBG Mobile UC discount still active for today?',
+        'created_at': '24m ago',
+        'is_read': 0,
+      }
+    ]
+  };
+
+  Future<Map<String, dynamic>> getChatUnreadCount() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/chat/unread-count'), headers: _headers);
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    int unread = _mockChatThreads.fold<int>(0, (sum, t) => sum + (t['unread_count'] as int? ?? 0));
+    return {'unreadCount': unread};
+  }
+
+  Future<List<Map<String, dynamic>>> getChatThreads() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/chat/threads'), headers: _headers);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return List<Map<String, dynamic>>.from(data['threads'] ?? []);
+      }
+    } catch (_) {}
+    return List<Map<String, dynamic>>.from(_mockChatThreads);
+  }
+
+  Future<Map<String, dynamic>> getChatThreadMessages(String userId) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/chat/threads/$userId'), headers: _headers);
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    final msgs = _mockChatMessages[userId] ?? [];
+    for (var m in msgs) {
+      m['is_read'] = 1;
+    }
+    for (var t in _mockChatThreads) {
+      if (t['user_id'] == userId) t['unread_count'] = 0;
+    }
+    return {
+      'messages': msgs,
+      'targetUser': {'id': userId, 'display_name': userId == 'usr_player2' ? 'Priya Thapa' : 'Aarav Sharma', 'wallet_balance': 450.0},
+      'latestOrder': {'game_name': 'Free Fire MAX', 'package_name': '100 Diamonds', 'price': 110.0, 'status': 'COMPLETED'},
+    };
+  }
+
+  Future<bool> sendChatMessage({required String message, String? threadId, String? recipientId}) async {
+    final targetId = recipientId ?? threadId ?? 'usr_player1';
+    final msgObj = {
+      'id': 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      'thread_id': targetId,
+      'sender_id': currentUserId,
+      'sender_role': 'admin',
+      'sender_name': 'TnT Ops Support',
+      'message': message,
+      'created_at': 'Just now',
+      'is_read': 1,
+    };
+    if (!_mockChatMessages.containsKey(targetId)) {
+      _mockChatMessages[targetId] = [];
+    }
+    _mockChatMessages[targetId]!.add(msgObj);
+
+    for (var t in _mockChatThreads) {
+      if (t['user_id'] == targetId) {
+        t['last_message'] = message;
+        t['last_sender_role'] = 'admin';
+        t['last_message_at'] = 'Just now';
+        t['unread_count'] = 0;
+      }
+    }
+
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/api/chat/send'),
+        headers: _headers,
+        body: jsonEncode({
+          'message': message,
+          'recipientId': recipientId,
+          'threadId': threadId,
+        }),
+      );
+    } catch (_) {}
+    return true;
+  }
 }

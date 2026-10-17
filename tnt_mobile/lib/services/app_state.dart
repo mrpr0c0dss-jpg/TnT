@@ -51,6 +51,8 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> _adminUsers = [];
   List<Map<String, dynamic>> _adminAiKeys = [];
   List<Map<String, dynamic>> _adminAuditLogs = [];
+  int _adminUnreadChatCount = 0;
+  List<Map<String, dynamic>> _adminChatThreads = [];
 
   // Getters
   UserModel get currentUser => _currentUser;
@@ -79,6 +81,8 @@ class AppState extends ChangeNotifier {
   List<Map<String, dynamic>> get adminUsers => _adminUsers;
   List<Map<String, dynamic>> get adminAiKeys => _adminAiKeys;
   List<Map<String, dynamic>> get adminAuditLogs => _adminAuditLogs;
+  int get adminUnreadChatCount => _adminUnreadChatCount;
+  List<Map<String, dynamic>> get adminChatThreads => _adminChatThreads;
 
   void setAdminPanelActive(bool active) {
     _isAdminPanelActive = active;
@@ -176,10 +180,24 @@ class AppState extends ChangeNotifier {
       _adminUsers = await _api.getAdminUsers();
       _adminAiKeys = await _api.getAdminAiKeys();
       _adminAuditLogs = await _api.getAdminAuditLogs();
+      final chatRes = await _api.getChatUnreadCount();
+      _adminUnreadChatCount = chatRes['unreadCount'] ?? 0;
+      _adminChatThreads = await _api.getChatThreads();
     } catch (e) {
       if (kDebugMode) print('Error reloading admin data: $e');
     }
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> getChatThreadMessages(String userId) => _api.getChatThreadMessages(userId);
+
+  Future<bool> sendAdminChatMessage(String userId, String message) async {
+    final ok = await _api.sendChatMessage(message: message, recipientId: userId);
+    final chatRes = await _api.getChatUnreadCount();
+    _adminUnreadChatCount = chatRes['unreadCount'] ?? 0;
+    _adminChatThreads = await _api.getChatThreads();
+    notifyListeners();
+    return ok;
   }
 
   void setTab(int index) {

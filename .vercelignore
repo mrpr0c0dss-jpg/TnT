@@ -1,0 +1,10 @@
+# Ignore mobile app and build artifacts from Vercel deployment
+tnt_mobile/
+node_modules/
+.git/
+.github/
+scratch/
+tests/
+*.log
+.DS_Store
+.firebase/

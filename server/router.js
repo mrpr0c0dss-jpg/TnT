@@ -1736,6 +1736,159 @@ async function handleApiRequest(req, res, pathname, query, body) {
     }
 
     // -------------------------------------------------------------
+    // LIVE SUPPORT CHAT & REAL-TIME ADMIN NOTIFICATIONS
+    // -------------------------------------------------------------
+    if (pathname === '/api/chat/unread-count' && req.method === 'GET') {
+      const isAdmin = ['super_admin', 'topup_operator', 'tournament_manager', 'finance_reviewer', 'support'].includes(currentUser.role);
+      let unreadCount = 0;
+      let latest = null;
+
+      if (isAdmin) {
+        unreadCount = db.prepare(`SELECT COUNT(*) as count FROM support_chat_messages WHERE recipient_id = 'admin' AND is_read = 0`).get()?.count || 0;
+        latest = db.prepare(`SELECT * FROM support_chat_messages WHERE recipient_id = 'admin' AND is_read = 0 ORDER BY created_at DESC LIMIT 1`).get();
+      } else {
+        unreadCount = db.prepare(`SELECT COUNT(*) as count FROM support_chat_messages WHERE recipient_id = ? AND is_read = 0`).get(currentUser.id)?.count || 0;
+        latest = db.prepare(`SELECT * FROM support_chat_messages WHERE recipient_id = ? AND is_read = 0 ORDER BY created_at DESC LIMIT 1`).get(currentUser.id);
+      }
+
+      return json({
+        unreadCount,
+        latestMessage: latest || null
+      });
+    }
+
+    if (pathname === '/api/chat/threads' && req.method === 'GET') {
+      const isAdmin = ['super_admin', 'topup_operator', 'tournament_manager', 'finance_reviewer', 'support'].includes(currentUser.role);
+      if (isAdmin) {
+        const threads = db.prepare(`
+          SELECT 
+            t.thread_id,
+            t.sender_id as user_id,
+            u.display_name as user_name,
+            u.email as user_email,
+            u.avatar as user_avatar,
+            COALESCE(w.available_balance, 0.0) as wallet_balance,
+            last_msg.message as last_message,
+            last_msg.created_at as last_message_at,
+            last_msg.sender_role as last_sender_role,
+            COALESCE(unread.unread_count, 0) as unread_count
+          FROM (
+            SELECT DISTINCT thread_id, 
+              CASE WHEN sender_role = 'player' THEN sender_id ELSE recipient_id END as sender_id
+            FROM support_chat_messages
+          ) t
+          JOIN users u ON t.sender_id = u.id
+          LEFT JOIN wallets w ON u.id = w.user_id
+          JOIN (
+            SELECT m1.*
+            FROM support_chat_messages m1
+            JOIN (
+              SELECT thread_id, MAX(created_at) as max_time
+              FROM support_chat_messages
+              GROUP BY thread_id
+            ) m2 ON m1.thread_id = m2.thread_id AND m1.created_at = m2.max_time
+          ) last_msg ON t.thread_id = last_msg.thread_id
+          LEFT JOIN (
+            SELECT thread_id, COUNT(*) as unread_count
+            FROM support_chat_messages
+            WHERE recipient_id = 'admin' AND is_read = 0
+            GROUP BY thread_id
+          ) unread ON t.thread_id = unread.thread_id
+          ORDER BY last_msg.created_at DESC
+        `).all();
+        return json(threads);
+      } else {
+        const threadId = 'thread_' + currentUser.id;
+        const msg = db.prepare(`SELECT * FROM support_chat_messages WHERE thread_id = ? ORDER BY created_at DESC LIMIT 1`).get(threadId);
+        const unread = db.prepare(`SELECT COUNT(*) as count FROM support_chat_messages WHERE thread_id = ? AND recipient_id = ? AND is_read = 0`).get(threadId, currentUser.id)?.count || 0;
+        return json([{
+          thread_id: threadId,
+          user_id: currentUser.id,
+          user_name: currentUser.display_name,
+          wallet_balance: getWallet(currentUser.id)?.available_balance || 0,
+          last_message: msg?.message || 'Chat started',
+          last_message_at: msg?.created_at || new Date().toISOString(),
+          unread_count: unread
+        }]);
+      }
+    }
+
+    if (pathname.startsWith('/api/chat/threads/') && req.method === 'GET') {
+      const targetUserId = pathname.split('/')[4];
+      const isAdmin = ['super_admin', 'topup_operator', 'tournament_manager', 'finance_reviewer', 'support'].includes(currentUser.role);
+      const effectiveUserId = isAdmin ? targetUserId : currentUser.id;
+      const threadId = 'thread_' + effectiveUserId;
+
+      // Mark incoming messages as read
+      const markRecipient = isAdmin ? 'admin' : currentUser.id;
+      db.prepare(`UPDATE support_chat_messages SET is_read = 1 WHERE thread_id = ? AND recipient_id = ?`).run(threadId, markRecipient);
+
+      const messages = db.prepare(`
+        SELECT * FROM support_chat_messages
+        WHERE thread_id = ?
+        ORDER BY created_at ASC
+      `).all(threadId);
+
+      const targetUser = db.prepare(`
+        SELECT u.id, u.display_name, u.email, u.avatar, COALESCE(w.available_balance, 0.0) as wallet_balance
+        FROM users u
+        LEFT JOIN wallets w ON u.id = w.user_id
+        WHERE u.id = ?
+      `).get(effectiveUserId);
+
+      const latestOrder = db.prepare(`
+        SELECT id, amount, payment_method, status, created_at
+        FROM topup_orders
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get(effectiveUserId);
+
+      return json({
+        threadId,
+        user: targetUser,
+        latestOrder,
+        messages
+      });
+    }
+
+    if (pathname === '/api/chat/send' && req.method === 'POST') {
+      const { targetUserId, message, attachmentUrl } = body || {};
+      if (!message || !message.trim()) {
+        return error('Message cannot be empty', 400);
+      }
+
+      const isAdmin = ['super_admin', 'topup_operator', 'tournament_manager', 'finance_reviewer', 'support'].includes(currentUser.role);
+      const effectiveUserId = isAdmin ? (targetUserId || 'usr_player1') : currentUser.id;
+      const threadId = 'thread_' + effectiveUserId;
+      const senderRole = isAdmin ? 'admin' : 'player';
+      const recipientId = isAdmin ? effectiveUserId : 'admin';
+      const msgId = 'msg_' + crypto.randomUUID().slice(0, 10);
+      const now = new Date().toISOString();
+
+      db.prepare(`
+        INSERT INTO support_chat_messages (
+          id, thread_id, sender_id, sender_role, sender_name, recipient_id, message, attachment_url, is_read, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      `).run(
+        msgId, threadId, currentUser.id, senderRole, currentUser.display_name, recipientId, message.trim(), attachmentUrl || null, now
+      );
+
+      return json({
+        id: msgId,
+        thread_id: threadId,
+        sender_id: currentUser.id,
+        sender_role: senderRole,
+        sender_name: currentUser.display_name,
+        recipient_id: recipientId,
+        message: message.trim(),
+        attachment_url: attachmentUrl || null,
+        is_read: 0,
+        created_at: now
+      });
+    }
+
+    // -------------------------------------------------------------
     // AI SUBSCRIPTIONS ROUTES (User & Admin Section)
     // -------------------------------------------------------------
     if (pathname === '/api/ai/tools' && req.method === 'GET') {
