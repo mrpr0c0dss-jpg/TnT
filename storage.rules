@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isImageUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024
+          && request.resource.contentType.matches('image/.*');
+    }
+
+    // 1. Payment Slips (deposit vouchers uploaded by users)
+    match /payment_slips/{userId}/{slipId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || request.auth.token.role == 'super_admin' || request.auth.token.role == 'finance_reviewer');
+      allow write: if isSignedIn() && request.auth.uid == userId && isImageUnder5MB();
+    }
+
+    // 2. Match Result Screenshots (submitted by players as proof of victory/kills)
+    match /match_screenshots/{tournamentId}/{matchId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isImageUnder5MB();
+    }
+
+    // 3. Dispute Evidence Photos
+    match /dispute_evidence/{disputeId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isImageUnder5MB();
+    }
+
+    // 4. Game & Tournament Banners (Public Read, Admin Write)
+    match /banners/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.role == 'super_admin';
+    }
+  }
+}

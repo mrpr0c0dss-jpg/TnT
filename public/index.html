@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TnT — TopUp &amp; Tournament | Safe • Fast • Trusted</title>
+  <meta name="description" content="TnT: Top up your favorite games and join exciting esports tournaments with double-entry security." />
+  <link rel="icon" type="image/png" href="/images/icon.png" />
+
+  <!-- Google Fonts: Rajdhani for esports headers, Outfit & Inter for body -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Rajdhani:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="/css/variables.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/views.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Utility & Announcement Strip (Matching Reference Store) -->
+    <div class="top-utility-strip" id="top-utility-strip">
+      <div class="top-utility-inner">
+        <div class="top-utility-left">
+          <div class="top-social-icons">
+            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" class="social-icon-circle" title="Facebook">f</a>
+            <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" class="social-icon-circle" title="YouTube">▶</a>
+            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="social-icon-circle" title="Instagram">📷</a>
+          </div>
+          <span class="top-install-text">Install <strong>TnT Gaming Store</strong> for a better experience.</span>
+          <button class="top-install-btn" onclick="openLoginModal()">Install</button>
+          <button class="top-strip-close" onclick="document.getElementById('top-utility-strip')?.remove()" title="Dismiss">&times;</button>
+        </div>
+        <div class="top-utility-right">
+          <span class="top-service-pill">🟢 Service 24/7 Hours</span>
+          <a href="https://wa.me/9779800000000" target="_blank" rel="noopener noreferrer" class="top-contact-link">💬 Whatsapp</a>
+          <a href="mailto:info@tntgamingstore.com" class="top-contact-link">✉️ info@tntgamingstore.com</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Navigation Header -->
+    <header class="app-header">
+      <div class="header-inner">
+        <!-- Brand Logo: TnT (TopUp & Tournament) -->
+        <div class="brand-logo" onclick="switchTab('home')">
+          <img src="/images/icon.png" alt="TnT" class="brand-logo-img" style="width: 38px; height: 38px; border-radius: 9px; object-fit: cover; box-shadow: 0 0 12px rgba(255, 255, 255, 0.4); flex-shrink: 0;" />
+          <div class="brand-title">
+            <span class="brand-tnt">TnT</span>
+            <span class="brand-sub">Gaming Store</span>
+            <span class="brand-badge" style="background: var(--fire-orange); color: #fff;">TOPUP</span>
+          </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <ul class="nav-menu">
+          <li class="nav-item">
+            <button class="nav-link active" data-tab="home" onclick="switchTab('home')">
+              <span>🏠</span> Home
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-tab="topup" onclick="switchTab('topup')">
+              <span>💎</span> Top-Up
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-tab="tournaments" onclick="switchTab('tournaments')">
+              <span>🏆</span> Tournaments
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-tab="matches" onclick="switchTab('matches')">
+              <span>⚔️</span> My Matches
+            </button>
+          </li>
+          <li class="nav-item">
+            <button id="nav-admin-tab" class="nav-link admin-link" data-tab="admin" onclick="switchTab('admin')">
+              <span>🛡️</span> Admin Portal
+            </button>
+          </li>
+        </ul>
+
+        <!-- Global Header Quick Search (Matching Reference Store) -->
+        <div class="header-search-wrap" id="header-search-wrap">
+          <!-- Mobile Search Toggle Button (Shows on mobile screen only) -->
+          <button type="button" class="mobile-search-toggle-btn" id="mobile-search-toggle-btn" onclick="toggleMobileSearch(event)" title="Search games & tournaments" aria-label="Open Search">
+            <svg class="mobile-search-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <line x1="15.5" y1="15.5" x2="21" y2="21" />
+            </svg>
+          </button>
+
+          <!-- Search Field (Desktop default, expands on mobile tap) -->
+          <div class="header-search-field" id="header-search-field">
+            <span class="header-search-icon" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <input type="text" id="global-search-input" class="header-search-input" placeholder="Search games, diamonds, vouchers..." autocomplete="off" oninput="handleGlobalSearch(this.value)" onfocus="handleGlobalSearch(this.value)" />
+            <button type="button" class="header-search-submit" onclick="handleGlobalSearch(document.getElementById('global-search-input').value)" aria-label="Search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+            <button type="button" class="mobile-search-close-btn" onclick="toggleMobileSearch(event, false)" aria-label="Close Search">✕</button>
+          </div>
+          <div id="global-search-dropdown" class="search-results-dropdown"></div>
+        </div>
+
+        <!-- Right User & Wallet Controls -->
+        <div class="header-actions">
+          <!-- Live Wallet Pill with Proper Wallet Symbol -->
+          <div class="wallet-chip" onclick="switchTab('wallet')" title="View Wallet & Transactions">
+            <span class="wallet-chip-icon" aria-hidden="true">
+              <svg class="wallet-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z" />
+                <path d="M16 3H4a2 2 0 0 0-2 2v2" />
+                <circle cx="17" cy="14" r="1.5" fill="currentColor" />
+              </svg>
+            </span>
+            <div class="wallet-info">
+              <span class="wallet-label">Wallet</span>
+              <span id="header-wallet-balance" class="wallet-balance">$0.00</span>
+            </div>
+            <button class="wallet-add-btn" onclick="event.stopPropagation(); openDepositModal();" title="Quick Deposit">+</button>
+          </div>
+
+          <!-- Location & Currency Region Selector (Only Country Flag) -->
+          <button id="header-region-selector" class="header-region-selector" onclick="openCountrySelectModal()" title="Location: Click to Change Country" aria-label="Select Country">
+            <span id="nav-country-flag">🇳🇵</span>
+          </button>
+
+          <!-- Theme Mode Switcher (Matching Reference Store Orange Switch) -->
+          <button id="theme-toggle-btn" class="theme-switch-toggle" onclick="toggleTheme()" title="Switch Light / Dark Theme" aria-label="Toggle Theme">
+            <span class="theme-switch-thumb" id="theme-toggle-thumb">☀️</span>
+          </button>
+
+          <!-- User Account Hub (Profile + Persona Switcher + Quick Actions) -->
+          <div class="user-account-hub">
+            <button id="header-user-pill" class="user-pill" onclick="toggleUserDropdown(event)" title="Account Menu">
+              <img id="header-user-avatar" class="user-avatar-img" src="" alt="Avatar" />
+              <span id="header-user-name" class="user-display-name">Alex Gamer</span>
+              <span id="header-role-badge" class="role-badge player">player</span>
+              <span class="user-chevron">▼</span>
+            </button>
+
+            <!-- Floating Account Dropdown -->
+            <div id="user-account-dropdown" class="user-account-dropdown">
+              <div class="user-dropdown-header">
+                <img id="dropdown-user-avatar" class="dropdown-avatar" src="" alt="Avatar" />
+                <div class="dropdown-user-meta">
+                  <div id="dropdown-user-name" class="dropdown-name">Alex Gamer</div>
+                  <div id="dropdown-user-email" class="dropdown-email">alex@gamers.io</div>
+                  <span id="dropdown-role-badge" class="role-badge player">player</span>
+                </div>
+              </div>
+
+              <!-- Wallet Quick Stats -->
+              <div class="dropdown-wallet-bar" onclick="switchTab('wallet'); closeUserDropdown();">
+                <div>
+                  <span style="font-size: 0.72rem; color: var(--secondary-text); text-transform: uppercase; font-weight: 700; display: block;">Escrow Wallet</span>
+                  <span id="dropdown-wallet-balance" style="font-family: var(--font-display); font-size: 1.15rem; color: var(--cyan); font-weight: 800;">$0.00</span>
+                </div>
+                <button class="btn btn-sm btn-cyan" onclick="event.stopPropagation(); openDepositModal(); closeUserDropdown();" style="padding: 4px 10px; font-size: 0.76rem;">+ Deposit</button>
+              </div>
+
+              <!-- Navigation Links -->
+              <div class="dropdown-nav-links">
+                <a href="javascript:void(0)" onclick="switchTab('profile'); closeUserDropdown();">
+                  <span>👤</span> My Profile &amp; KYC
+                </a>
+                <a href="javascript:void(0)" onclick="switchTab('matches'); closeUserDropdown();">
+                  <span>⚔️</span> My Registered Tournaments
+                </a>
+                <a href="javascript:void(0)" onclick="switchTab('wallet'); closeUserDropdown();">
+                  <span>💳</span> Wallet &amp; Ledger History
+                </a>
+                <a id="dropdown-admin-link" href="javascript:void(0)" onclick="switchTab('admin'); closeUserDropdown();" style="color: var(--fire-orange);">
+                  <span>🛡️</span> Admin Operations Portal
+                </a>
+              </div>
+
+              <!-- Specification Persona Switcher (For Spec Compliance & Testing) -->
+              <div class="dropdown-role-section">
+                <div class="dropdown-section-title">⚡ Switch Spec Persona (Testing)</div>
+                <select id="user-switcher-select" class="dropdown-select" onchange="STATE.switchUser(this.value); closeUserDropdown();">
+                  <!-- Dynamically populated -->
+                </select>
+                <div style="font-size: 0.72rem; color: var(--secondary-text); line-height: 1.3;">
+                  Instantly switch between Player, Super Admin, Tournament Manager, Topup Operator, and Finance Reviewer.
+                </div>
+              </div>
+
+              <!-- Google / Gmail Sign-In Button -->
+              <button class="btn btn-sm" onclick="openLoginModal(); closeUserDropdown();" style="width: 100%; justify-content: center; font-size: 0.8rem; margin-top: 0.5rem; background: #ffffff; color: #1f2937; font-weight: 700; border: 1px solid #d1d5db; gap: 0.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+                <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z"/><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"/><path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12.3 0 15s.7 5.3 1.9 7.7l3.7-2.9z"/><path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2-6.4-4.8L1.9 16.4C3.7 20.4 7.5 23 12 23z"/></svg>
+                Sign In with Google / Gmail
+              </button>
+
+              <!-- Admin Credentials Modal Button -->
+              <button id="header-admin-login-btn" class="btn btn-sm btn-outline-cyan" onclick="openAdminLoginModal(); closeUserDropdown();" style="width: 100%; justify-content: center; font-size: 0.78rem; margin-top: 0.25rem;">
+                <span>🛡️</span> Staff Credentials Login
+              </button>
+
+              <!-- Sign Out Button -->
+              <button class="btn btn-sm btn-secondary" onclick="executeSignOut();" style="width: 100%; justify-content: center; font-size: 0.76rem; margin-top: 0.4rem; color: var(--secondary-text);">
+                <span>🚪</span> Sign Out Session
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area (Rendered Dynamically) -->
+    <main class="app-main">
+      <div id="tab-content-area"></div>
+    </main>
+
+    <!-- Global App Footer (Professional Esports & Gaming Store Hub) -->
+    <footer class="app-footer">
+      <!-- 1. Top Feature & Trust Pillars Strip -->
+      <div class="footer-trust-strip">
+        <div class="footer-trust-inner">
+          <div class="footer-trust-item">
+            <div class="trust-icon-box trust-green">🛡️</div>
+            <div class="trust-meta">
+              <span class="trust-title">256-Bit SSL Encryption</span>
+              <span class="trust-desc">Bank-grade transaction security</span>
+            </div>
+          </div>
+          <div class="footer-trust-item">
+            <div class="trust-icon-box trust-blue">✓</div>
+            <div class="trust-meta">
+              <span class="trust-title">Verified Gateways</span>
+              <span class="trust-desc">eSewa • Khalti • IME Pay • Cards</span>
+            </div>
+          </div>
+          <div class="footer-trust-item">
+            <div class="trust-icon-box trust-orange">⚡</div>
+            <div class="trust-meta">
+              <span class="trust-title">&lt;60s Instant Delivery</span>
+              <span class="trust-desc">Automated publisher webhook credit</span>
+            </div>
+          </div>
+          <div class="footer-trust-item">
+            <div class="trust-icon-box trust-cyan">🎧</div>
+            <div class="trust-meta">
+              <span class="trust-title">24/7 Dedicated Support</span>
+              <span class="trust-desc">Live WhatsApp &amp; fast dispute desk</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Main Footer Navigation Grid -->
+      <div class="footer-inner">
+        <!-- Brand & Community Column -->
+        <div class="footer-col footer-brand-col">
+          <div class="footer-brand-header">
+            <img src="/images/icon.png" alt="TnT Gaming Store" class="footer-brand-logo" />
+            <div>
+              <div class="footer-brand-name">
+                <span class="brand-tnt">TnT</span>
+                <span class="footer-brand-badge">Gaming Store</span>
+              </div>
+              <div class="footer-brand-tagline">Safe • Fast • Trusted</div>
+            </div>
+          </div>
+          <p class="footer-brand-text">
+            Nepal's premier gaming top-up store and esports tournament platform. Direct diamond deliveries, mathematically reconciled double-entry escrow wallets, and fair competitive brackets.
+          </p>
+
+          <!-- Social Community Buttons -->
+          <div class="footer-social-links">
+            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" class="footer-social-btn" title="Facebook">f</a>
+            <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" class="footer-social-btn" title="YouTube">▶</a>
+            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="footer-social-btn" title="Instagram">📷</a>
+            <a href="https://wa.me/9779800000000" target="_blank" rel="noopener noreferrer" class="footer-social-btn" title="WhatsApp">💬</a>
+          </div>
+
+          <!-- Trust Badges -->
+          <div class="footer-trust-chips">
+            <span class="footer-chip">🔒 100% Escrow Ledger</span>
+            <span class="footer-chip">⚡ Instant Top-Up</span>
+            <span class="footer-chip">🏆 Verified Tournaments</span>
+          </div>
+        </div>
+
+        <!-- Column 2: Direct Top-Up -->
+        <div class="footer-col">
+          <h4 class="footer-col-title">Game Top-Up</h4>
+          <ul class="footer-links">
+            <li><a href="javascript:void(0)" onclick="selectGameAndGoToTopUp('freefire')">🔥 Free Fire MAX Diamonds</a></li>
+            <li><a href="javascript:void(0)" onclick="selectGameAndGoToTopUp('mlbb')">⚔️ Mobile Legends (MLBB)</a></li>
+            <li><a href="javascript:void(0)" onclick="selectGameAndGoToTopUp('pubg')">🪂 PUBG Mobile UC</a></li>
+            <li><a href="javascript:void(0)" onclick="selectGameAndGoToTopUp('valorant')">🎯 Valorant Points</a></li>
+            <li><a href="javascript:void(0)" onclick="selectGameAndGoToTopUp('roblox')">🧱 Roblox Robux Credits</a></li>
+            <li><a href="javascript:void(0)" onclick="switchTab('topup')">🎮 Browse All Games →</a></li>
+          </ul>
+        </div>
+
+        <!-- Column 3: Esports Hub -->
+        <div class="footer-col">
+          <h4 class="footer-col-title">Esports &amp; Matches</h4>
+          <ul class="footer-links">
+            <li><a href="javascript:void(0)" onclick="switchTab('tournaments')">🏆 Active Tournaments</a></li>
+            <li><a href="javascript:void(0)" onclick="switchTab('matches')">🔑 Room Credentials Lobby</a></li>
+            <li><a href="javascript:void(0)" onclick="switchTab('wallet')">💰 Escrow Wallet &amp; Payouts</a></li>
+            <li><a href="javascript:void(0)" onclick="openLegalModal('terms')">⚖️ Fair Play &amp; Anti-Cheat</a></li>
+            <li><a href="javascript:void(0)" onclick="openLegalModal('refund')">🔄 Entry Fee Refund Policy</a></li>
+            <li><a href="javascript:void(0)" onclick="switchTab('admin')">🛡️ Organizer &amp; Admin Portal</a></li>
+          </ul>
+        </div>
+
+        <!-- Column 4: Payment Partners & Guarantee -->
+        <div class="footer-col footer-pay-col">
+          <h4 class="footer-col-title">Payment Partners</h4>
+          <p class="footer-pay-sub">Instant zero-fee local checkout with real-time automated verification:</p>
+          <div class="footer-gateway-badges">
+            <div class="pay-badge-item pay-esewa">
+              <span class="pay-badge-dot"></span>
+              <span class="pay-badge-text">eSewa Direct</span>
+              <span class="pay-badge-fee">0% Fee</span>
+            </div>
+            <div class="pay-badge-item pay-khalti">
+              <span class="pay-badge-dot"></span>
+              <span class="pay-badge-text">Khalti Pay</span>
+              <span class="pay-badge-fee">Instant</span>
+            </div>
+            <div class="pay-badge-item pay-ime">
+              <span class="pay-badge-dot"></span>
+              <span class="pay-badge-text">IME Pay</span>
+              <span class="pay-badge-fee">Direct</span>
+            </div>
+            <div class="pay-badge-item pay-banking">
+              <span class="pay-badge-dot"></span>
+              <span class="pay-badge-text">Mobile Banking</span>
+              <span class="pay-badge-fee">Fonepay</span>
+            </div>
+          </div>
+          <div class="footer-live-status">
+            <span class="status-pulse-dot"></span>
+            <span>All Payment Systems Operational (100% Uptime)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Bottom Legal & Copyright Bar -->
+      <div class="footer-bottom">
+        <div class="footer-bottom-copy">
+          © 2026 <strong>TnT Gaming Store</strong> — TopUp &amp; Tournament Esports System. All rights reserved. Built for competitive excellence.
+        </div>
+        <div class="footer-bottom-links">
+          <a href="javascript:void(0)" onclick="openLegalModal('privacy')">Privacy Policy</a>
+          <span class="footer-separator">•</span>
+          <a href="javascript:void(0)" onclick="openLegalModal('terms')">Terms of Service</a>
+          <span class="footer-separator">•</span>
+          <a href="javascript:void(0)" onclick="openLegalModal('refund')">Refund Policy</a>
+          <span class="footer-separator">•</span>
+          <a href="javascript:void(0)" onclick="openLegalModal('contact')" class="footer-support-link">Contact Support</a>
+        </div>
+      </div>
+    </footer>
+    <!-- Mobile Bottom App Bar (Simple & Clean Matching Reference Store) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+      <button class="mobile-nav-btn active" data-nav="home" onclick="switchTab('home')">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span class="mobile-nav-label">Home</span>
+      </button>
+
+      <button class="mobile-nav-btn" data-nav="topup" onclick="switchTab('topup')">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="6" width="20" height="12" rx="4"></rect>
+          <line x1="6" y1="12" x2="10" y2="12"></line>
+          <line x1="8" y1="10" x2="8" y2="14"></line>
+          <line x1="15" y1="13" x2="15.01" y2="13"></line>
+          <line x1="18" y1="11" x2="18.01" y2="11"></line>
+        </svg>
+        <span class="mobile-nav-label">Top Up</span>
+      </button>
+
+      <button class="mobile-nav-btn" data-nav="reviews" onclick="goToCustomerReviews()">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span class="mobile-nav-label">Reviews</span>
+      </button>
+
+      <button class="mobile-nav-btn" data-nav="whatsapp" onclick="openWhatsAppChat()">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+        </svg>
+        <span class="mobile-nav-label">WhatsApp</span>
+      </button>
+
+      <button class="mobile-nav-btn" data-nav="account" onclick="openAccountDrawerOrModal()">
+        <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span class="mobile-nav-label">Account</span>
+      </button>
+    </nav>
+
+    <!-- Floating Scroll To Top & Live Chat Triggers (Matching Reference Store) -->
+    <div class="floating-controls-cluster">
+      <!-- Scroll To Top Button -->
+      <button type="button" class="floating-scroll-top-btn" id="scroll-top-btn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" title="Scroll to top" aria-label="Scroll to top">
+        ↑
+      </button>
+
+      <!-- Dual-Color Speech Bubble Live Chat Badge (Matching Reference Store) -->
+      <button type="button" class="floating-live-chat-bubble" onclick="toggleLiveChatWidget()" title="Live Chat 24/7" aria-label="Live Chat">
+        <div class="live-chat-badge-inner">
+          <span class="live-part">LIVE</span>
+          <span class="chat-part">CHAT</span>
+        </div>
+        <div class="live-chat-tail"></div>
+      </button>
+    </div>
+
+    <!-- Floating Live Chat Widget Popup (Matching Reference Store) -->
+    <div id="live-chat-widget" class="live-chat-popup-container" style="display: none;">
+      <div class="chat-popup-header">
+        <div class="chat-agent-info">
+          <div class="chat-avatar-wrap">
+            <img src="/images/icon.png" alt="Support Agent" class="chat-agent-avatar" />
+            <span class="chat-status-dot online"></span>
+          </div>
+          <div>
+            <div class="chat-agent-name">TnT Live Gamer Support</div>
+            <div class="chat-agent-sub"><span style="color: #ffffff; font-weight: 700;">● Online 24/7</span> • Instant Help</div>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button class="chat-header-btn" onclick="toggleLiveChatWidget()" title="Close Chat">&times;</button>
+        </div>
+      </div>
+
+      <div class="chat-popup-body" id="chat-messages-container">
+        <div class="chat-timestamp">Today</div>
+        <div class="chat-msg incoming">
+          <div class="chat-bubble">
+            👋 Hello! Welcome to <strong>TnT Gaming Store</strong>. How can we help you right now?
+          </div>
+        </div>
+        
+        <!-- Quick Option Chips -->
+        <div class="chat-quick-chips">
+          <button type="button" class="chat-chip" onclick="handleQuickChatQuery('topup_status')">⚡ Top-Up Status</button>
+          <button type="button" class="chat-chip" onclick="handleQuickChatQuery('player_id')">🎮 Find Player ID</button>
+          <button type="button" class="chat-chip" onclick="handleQuickChatQuery('tournament_help')">🏆 Tournament Room Help</button>
+          <button type="button" class="chat-chip highlight" onclick="openWhatsAppChat()">💬 Talk on WhatsApp</button>
+        </div>
+      </div>
+
+      <!-- Live Chat Quick WhatsApp Strip -->
+      <a href="https://wa.me/9779800000000" target="_blank" rel="noopener noreferrer" class="chat-whatsapp-banner">
+        <span>💬 Need human agent? Chat directly on WhatsApp →</span>
+      </a>
+
+      <form class="chat-popup-footer" onsubmit="handleSendChatMessage(event)">
+        <input type="text" id="chat-input-text" class="chat-input-field" placeholder="Type your message..." autocomplete="off" />
+        <button type="submit" class="chat-send-btn" title="Send Message">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Global Modal Dialog Overlay -->
+  <div id="global-modal-overlay" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="global-modal-title" class="modal-title">Modal</h3>
+        <button id="global-modal-close-btn" class="modal-close-btn">&times;</button>
+      </div>
+      <div id="global-modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Client JavaScript Scripts -->
+  <script type="module" src="/js/firebase.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/state.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

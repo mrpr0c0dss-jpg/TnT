@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Flutter / Dart
+tnt_mobile/build/
+tnt_mobile/.dart_tool/
+tnt_mobile/.flutter-plugins
+tnt_mobile/.flutter-plugins-dependencies
+tnt_mobile/.pub/
+tnt_mobile/.pub-cache/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+.vscode/
+.idea/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+serviceAccountKey*.json
+
+# Firebase local cache
+.firebase/
+
+# Scratch & temporary
+scratch/

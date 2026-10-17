@@ -1,0 +1,27 @@
+{
+  "name": "topup-and-tournament",
+  "version": "1.0.0",
+  "description": "Top-Up & Tournament Gaming Platform",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node tests/api.test.js",
+    "sync:firestore": "node scripts/sync_to_firestore.js"
+  },
+  "keywords": [
+    "gaming",
+    "topup",
+    "tournament",
+    "esports",
+    "wallet"
+  ],
+  "author": "Antigravity",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "firebase": "^13.0.0",
+    "firebase-admin": "^14.5.0"
+  }
+}

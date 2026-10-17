@@ -1,0 +1,124 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'support')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+        // Prevent users from escalating their own role or unbanning themselves
+        "role": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+        },
+        "status": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+        }
+      }
+    },
+
+    "wallets": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'finance_reviewer')",
+        // Wallet balances are strictly modified by admin/finance or backend cloud functions to maintain double-entry integrity
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'finance_reviewer')"
+      }
+    },
+
+    "transactions": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'finance_reviewer')",
+        "$txnId": {
+          // Append-only ledger: can create a new record, but cannot update or delete existing transactions
+          ".write": "auth != null && (!data.exists() && newData.exists())"
+        }
+      }
+    },
+
+    "topups": {
+      "games": {
+        ".read": true,
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'topup_operator')"
+      },
+      "packages": {
+        ".read": true,
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'topup_operator')"
+      },
+      "orders": {
+        "$orderId": {
+          ".read": "auth != null && (data.child('user_id').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'topup_operator')",
+          ".write": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'topup_operator')"
+        }
+      }
+    },
+
+    "tournaments": {
+      ".read": true,
+      "$tournamentId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'tournament_manager')",
+        // Time-Gated Room Credentials: Only registered participants can view after release time
+        "room_secret": {
+          ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'tournament_manager' || (root.child('tournament_registrations').child($tournamentId).child(auth.uid).exists() && now >= data.parent().child('room_release_at').val()))"
+        }
+      }
+    },
+
+    "tournament_registrations": {
+      "$tournamentId": {
+        ".read": "auth != null",
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'tournament_manager')",
+          ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'tournament_manager')"
+        }
+      }
+    },
+
+    "match_submissions": {
+      "$tournamentId": {
+        "$matchId": {
+          "$uid": {
+            ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'tournament_manager')",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    },
+
+    "disputes": {
+      "$disputeId": {
+        ".read": "auth != null && (data.child('user_id').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'support')",
+        ".write": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'support')"
+      }
+    },
+
+    "ai_subscriptions": {
+      "tools": {
+        ".read": true,
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+      },
+      "user_licenses": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'super_admin')",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+        }
+      },
+      "key_vault": {
+        // Vault keys are private and ONLY visible to Super Admin
+        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'super_admin'"
+      }
+    },
+
+    "leaderboard": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'tournament_manager')"
+    },
+
+    "audit_logs": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'super_admin' || root.child('users').child(auth.uid).child('role').val() === 'finance_reviewer')",
+      "$logId": {
+        ".write": "auth != null && (!data.exists() && newData.exists())"
+      }
+    }
+  }
+}

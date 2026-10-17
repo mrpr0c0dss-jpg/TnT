@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for Role-Based Access Control (RBAC)
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    function isSuperAdmin() {
+      return hasRole('super_admin');
+    }
+
+    function isTournamentManager() {
+      return hasRole('tournament_manager') || isSuperAdmin();
+    }
+
+    function isTopupOperator() {
+      return hasRole('topup_operator') || isSuperAdmin();
+    }
+
+    function isFinanceReviewer() {
+      return hasRole('finance_reviewer') || isSuperAdmin();
+    }
+
+    function isSupport() {
+      return hasRole('support') || isSuperAdmin();
+    }
+
+    // 1. Users Profile Collection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isSuperAdmin() || isSupport();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Users cannot change their own role or status
+      allow update: if isSuperAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'isStaff']));
+      allow delete: if isSuperAdmin();
+    }
+
+    // 2. Wallets Collection (Double-Entry Escrow Ledger)
+    match /wallets/{userId} {
+      allow read: if isOwner(userId) || isFinanceReviewer();
+      // Only server/admin/finance can credit/debit balances
+      allow write: if isFinanceReviewer();
+    }
+
+    // 3. Transactions Collection (Append-Only Ledger)
+    match /transactions/{txnId} {
+      allow read: if isSignedIn() && (resource.data.user_id == request.auth.uid || isFinanceReviewer());
+      // Append-only: cannot overwrite or delete existing financial entries
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // 4. Top-Up Games & Packages Catalog
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if isTopupOperator();
+    }
+
+    match /packages/{packageId} {
+      allow read: if true;
+      allow write: if isTopupOperator();
+    }
+
+    // 5. Top-Up Orders Collection
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (resource.data.user_id == request.auth.uid || isTopupOperator());
+      allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isTopupOperator();
+      allow delete: if isSuperAdmin();
+    }
+
+    // 6. Tournaments Collection
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow write: if isTournamentManager();
+
+      // Time-Gated Room Credentials subcollection
+      match /secrets/{secretId} {
+        allow read: if isTournamentManager() || (
+          isSignedIn() && 
+          exists(/databases/$(database)/documents/tournaments/$(tournamentId)/registrations/$(request.auth.uid)) &&
+          request.time >= get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.room_release_at
+        );
+        allow write: if isTournamentManager();
+      }
+
+      // Tournament Registrations
+      match /registrations/{userId} {
+        allow read: if isSignedIn();
+        allow create: if isOwner(userId);
+        allow update, delete: if isOwner(userId) || isTournamentManager();
+      }
+    }
+
+    // 7. Match Results Submissions
+    match /match_submissions/{submissionId} {
+      allow read: if isSignedIn() && (resource.data.user_id == request.auth.uid || isTournamentManager());
+      allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isTournamentManager();
+      allow delete: if isSuperAdmin();
+    }
+
+    // 8. Dual-Approval Prize Payouts
+    match /prizes/{prizeId} {
+      allow read: if isSignedIn() && (resource.data.user_id == request.auth.uid || isFinanceReviewer());
+      // First approved by Tournament Manager, dual-approved by Finance Reviewer
+      allow write: if isFinanceReviewer() || isTournamentManager();
+    }
+
+    // 9. Disputes Desk
+    match /disputes/{disputeId} {
+      allow read: if isSignedIn() && (resource.data.user_id == request.auth.uid || isSupport());
+      allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isSupport();
+      allow delete: if isSuperAdmin();
+    }
+
+    // 10. AI Subscriptions & Keys
+    match /ai_tools/{toolId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /ai_subscriptions/{subId} {
+      allow read: if isSignedIn() && (resource.data.user_id == request.auth.uid || isSuperAdmin());
+      allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /ai_keys/{keyId} {
+      // Secret key vault: strictly restricted to super_admin
+      allow read, write: if isSuperAdmin();
+    }
+
+    // 11. Immutable Audit Logs
+    match /audit_logs/{logId} {
+      allow read: if isFinanceReviewer();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}
