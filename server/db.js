@@ -3,10 +3,24 @@ const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 
-const DB_PATH = path.join(__dirname, '..', 'topup_tournament.sqlite');
+let DB_PATH = path.join(__dirname, '..', 'topup_tournament.sqlite');
+
+// On Vercel / serverless environments, copy bundled DB to writable /tmp directory
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const tmpPath = path.join('/tmp', 'topup_tournament.sqlite');
+  try {
+    if (!fs.existsSync(tmpPath) && fs.existsSync(DB_PATH)) {
+      fs.copyFileSync(DB_PATH, tmpPath);
+    }
+    DB_PATH = tmpPath;
+  } catch (err) {
+    console.warn('Vercel /tmp DB initialization warning:', err.message);
+  }
+}
+
 const db = new DatabaseSync(DB_PATH);
 
-// Enable foreign keys and WAL mode
+// Enable foreign keys
 db.exec('PRAGMA foreign_keys = ON;');
 
 function initSchema() {
