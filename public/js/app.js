@@ -1075,16 +1075,25 @@ function renderActiveTab() {
 // 1. HOME VIEW
 // ------------------------------------------------------------------
 async function renderHomeView(container) {
-  const [tournaments, liveTournaments, allTournaments, metrics, leaderboard, featuredPackages] = await Promise.all([
+  const [tournaments, liveTournaments, allTournaments, metrics, leaderboard, featuredPackages, dynamicBanners] = await Promise.all([
     API.getTournaments({ status: 'Registration Open' }).catch(() => []),
     API.getTournaments({ status: 'Live' }).catch(() => []),
     API.getTournaments().catch(() => []),
     API.getPlatformMetrics().catch(() => ({ activeGames: 6, totalTournaments: 6, totalRegistrations: 12, totalLedgerTx: 48, status: 'OPERATIONAL' })),
     API.getLeaderboard().catch(() => []),
-    API.getFeaturedPackages().catch(() => [])
+    API.getFeaturedPackages().catch(() => []),
+    API.getBanners().catch(() => [])
   ]);
 
   const activeCountry = getActiveCountry();
+
+  const banners = (dynamicBanners && dynamicBanners.length > 0) ? dynamicBanners : [
+    { title: 'TNT Esports Tournament Arena', image_url: '/assets/banner/tnt_esports_arena.webp', link_url: '#tournaments' },
+    { title: 'Neon Loot Battle Royale', image_url: '/assets/banner/neon_loot_battle_royale.webp', link_url: '#topups' },
+    { title: 'Cricket Stadium Lights', image_url: '/assets/banner/cricket_stadium_lights.webp', link_url: '#arcade' },
+    { title: 'Neon AI Workspace', image_url: '/assets/banner/neon_ai_workspace.webp', link_url: '#subscriptions' }
+  ];
+  HERO_BANNER_ITEMS = banners;
 
   // Genuine Active Announcement from Database
   const activePromoTour = liveTournaments[0] || tournaments[0] || allTournaments[0];
@@ -1105,30 +1114,17 @@ async function renderHomeView(container) {
     <!-- Promotional Announcement Bar -->
     ${announcementHtml}
 
-    <!-- 3D Peek / Coverflow Banner Slider (Pure Image Artwork, No Text, Matching Reference Store) -->
+    <!-- 3D Peek / Coverflow Banner Slider (Pure Image Artwork, Controlled by Admin Panel) -->
     <div class="peek-carousel-section" id="hero-billboard-container" onmouseenter="pauseHeroAutoplay()" onmouseleave="resumeHeroAutoplay()">
       <div class="peek-carousel-stage" id="peek-carousel-stage">
         <div class="peek-carousel-viewport" id="peek-carousel-viewport">
-          <div class="peek-slide is-active" id="peek-slide-0" data-index="0" onclick="handlePeekSlideClick(0)">
-            <div class="peek-slide-inner">
-              <img src="/assets/banner/tnt_esports_arena.webp" alt="TNT Esports Tournament Arena" loading="eager" />
+          ${banners.map((b, idx) => `
+            <div class="peek-slide ${idx === 0 ? 'is-active' : idx === 1 ? 'is-next' : idx === banners.length - 1 ? 'is-prev' : 'is-hidden'}" id="peek-slide-${idx}" data-index="${idx}" onclick="handlePeekSlideClick(${idx})" style="cursor: pointer;">
+              <div class="peek-slide-inner">
+                <img src="${escapeHtml(b.image_url)}" alt="${escapeHtml(b.title || '')}" loading="${idx === 0 ? 'eager' : 'lazy'}" />
+              </div>
             </div>
-          </div>
-          <div class="peek-slide is-next" id="peek-slide-1" data-index="1" onclick="handlePeekSlideClick(1)">
-            <div class="peek-slide-inner">
-              <img src="/assets/banner/neon_loot_battle_royale.webp" alt="Neon Loot Battle Royale" loading="lazy" />
-            </div>
-          </div>
-          <div class="peek-slide is-hidden" id="peek-slide-2" data-index="2" onclick="handlePeekSlideClick(2)">
-            <div class="peek-slide-inner">
-              <img src="/assets/banner/cricket_stadium_lights.webp" alt="Cricket Stadium Lights" loading="lazy" />
-            </div>
-          </div>
-          <div class="peek-slide is-prev" id="peek-slide-3" data-index="3" onclick="handlePeekSlideClick(3)">
-            <div class="peek-slide-inner">
-              <img src="/assets/banner/neon_ai_workspace.webp" alt="Neon AI Workspace" loading="lazy" />
-            </div>
-          </div>
+          `).join('')}
         </div>
 
         <!-- Sleek Chevrons Matching Reference Store -->
@@ -1138,10 +1134,9 @@ async function renderHomeView(container) {
 
       <!-- Elongated Orange Active Pill Pagination Dots -->
       <div class="peek-pagination-bar" id="peek-pagination-bar">
-        <button type="button" class="peek-dot active" data-index="0" onclick="goToHeroSlide(0)" aria-label="Banner 1"></button>
-        <button type="button" class="peek-dot" data-index="1" onclick="goToHeroSlide(1)" aria-label="Banner 2"></button>
-        <button type="button" class="peek-dot" data-index="2" onclick="goToHeroSlide(2)" aria-label="Banner 3"></button>
-        <button type="button" class="peek-dot" data-index="3" onclick="goToHeroSlide(3)" aria-label="Banner 4"></button>
+        ${banners.map((b, idx) => `
+          <button type="button" class="peek-dot ${idx === 0 ? 'active' : ''}" data-index="${idx}" onclick="goToHeroSlide(${idx})" aria-label="Banner ${idx + 1}"></button>
+        `).join('')}
       </div>
     </div>
 
@@ -2080,11 +2075,11 @@ function renderTopUpHomeSpecHtml() {
 // ==================================================================
 // 3D Peek / Coverflow Banner Carousel Controller (Matching Reference Store)
 // ==================================================================
-const HERO_BANNER_IMAGES = [
-  '/assets/banner/tnt_esports_arena.webp',
-  '/assets/banner/neon_loot_battle_royale.webp',
-  '/assets/banner/cricket_stadium_lights.webp',
-  '/assets/banner/neon_ai_workspace.webp'
+let HERO_BANNER_ITEMS = [
+  { title: 'TNT Esports Tournament Arena', image_url: '/assets/banner/tnt_esports_arena.webp', link_url: '#tournaments' },
+  { title: 'Neon Loot Battle Royale', image_url: '/assets/banner/neon_loot_battle_royale.webp', link_url: '#topups' },
+  { title: 'Cricket Stadium Lights', image_url: '/assets/banner/cricket_stadium_lights.webp', link_url: '#arcade' },
+  { title: 'Neon AI Workspace', image_url: '/assets/banner/neon_ai_workspace.webp', link_url: '#subscriptions' }
 ];
 
 let currentHeroIndex = 0;
@@ -2097,7 +2092,7 @@ let touchEndY = 0;
 let isSwiping = false;
 
 function goToHeroSlide(targetIndex) {
-  const total = HERO_BANNER_IMAGES.length;
+  const total = (HERO_BANNER_ITEMS && HERO_BANNER_ITEMS.length > 0) ? HERO_BANNER_ITEMS.length : 1;
   currentHeroIndex = (targetIndex + total) % total;
 
   const prevIdx = (currentHeroIndex - 1 + total) % total;
@@ -2157,6 +2152,19 @@ function switchHeroShowcase(index) {
 window.switchHeroShowcase = switchHeroShowcase;
 
 function triggerHeroBannerClick() {
+  const current = HERO_BANNER_ITEMS[currentHeroIndex];
+  if (current && current.link_url) {
+    if (current.link_url.startsWith('#')) {
+      const tab = current.link_url.replace('#', '');
+      if (['topup', 'tournaments', 'arcade', 'subscriptions', 'wallet', 'home'].includes(tab)) {
+        switchTab(tab);
+        return;
+      }
+    } else if (current.link_url.startsWith('http')) {
+      window.open(current.link_url, '_blank');
+      return;
+    }
+  }
   switchTab('tournaments');
 }
 window.triggerHeroBannerClick = triggerHeroBannerClick;
@@ -4087,9 +4095,22 @@ function copyToClipboard(text, label = 'Text') {
 }
 window.copyToClipboard = copyToClipboard;
 
-function openDepositModal() {
+async function openDepositModal() {
   const activeCountry = getActiveCountry();
   const rate = activeCountry.rate || 135;
+
+  let gateways = [];
+  try {
+    gateways = await API.getPaymentGateways();
+  } catch (e) {
+    gateways = [
+      { id: 'gw_esewa', name: 'eSewa QR & Mobile Wallet', provider: 'esewa', qr_image_url: '/assets/payment/esewa_qr.svg', receiver_name: 'TnT Gaming Store Official', receiver_number: '9801234567', instructions: 'Scan using your eSewa App. Ensure you enter your Order/Deposit Reference in the Remarks field.' },
+      { id: 'gw_khalti', name: 'Khalti Digital Wallet', provider: 'khalti', qr_image_url: '/assets/payment/khalti_qr.svg', receiver_name: 'TnT Gaming Store Official', receiver_number: '9801234567', instructions: 'Scan via Khalti App. Copy your Deposit Reference code into Remarks for instant verification.' },
+      { id: 'gw_fonepay', name: 'Fonepay / Mobile Banking QR', provider: 'fonepay', qr_image_url: '/assets/payment/fonepay_qr.svg', receiver_name: 'TnT Gaming Store Official', receiver_number: '9801234567', instructions: 'Open your mobile banking app, tap Scan QR, and pay to Fonepay Merchant.' }
+    ];
+  }
+
+  STATE.cachedPaymentGateways = gateways;
 
   const modalHtml = `
     <div style="display: flex; flex-direction: column; gap: 1.25rem;">
@@ -4120,27 +4141,17 @@ function openDepositModal() {
       <!-- Payment Provider Selector -->
       <div class="form-group">
         <label class="form-label" style="font-weight: 800;">Select QR Payment Gateway</label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.65rem;">
-          <label style="cursor: pointer; border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem 0.5rem; text-align: center; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
-            <input type="radio" name="deposit-gateway" value="esewa" checked onchange="selectDepositGateway('esewa')" style="display: none;" />
-            <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; font-weight: 900; color: #10B981; font-size: 1.1rem;">e</div>
-            <span style="font-size: 0.82rem; font-weight: 800; color: var(--primary-text);">eSewa QR</span>
-            <span style="font-size: 0.68rem; color: #10B981; font-weight: 700;">0% Fee</span>
-          </label>
-
-          <label style="cursor: pointer; border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem 0.5rem; text-align: center; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
-            <input type="radio" name="deposit-gateway" value="khalti" onchange="selectDepositGateway('khalti')" style="display: none;" />
-            <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(139, 92, 246, 0.15); display: flex; align-items: center; justify-content: center; font-weight: 900; color: #8B5CF6; font-size: 1.1rem;">K</div>
-            <span style="font-size: 0.82rem; font-weight: 800; color: var(--primary-text);">Khalti QR</span>
-            <span style="font-size: 0.68rem; color: #8B5CF6; font-weight: 700;">Instant</span>
-          </label>
-
-          <label style="cursor: pointer; border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem 0.5rem; text-align: center; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
-            <input type="radio" name="deposit-gateway" value="fonepay" onchange="selectDepositGateway('fonepay')" style="display: none;" />
-            <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; font-weight: 900; color: #EF4444; font-size: 0.95rem;">fone</div>
-            <span style="font-size: 0.82rem; font-weight: 800; color: var(--primary-text);">Fonepay</span>
-            <span style="font-size: 0.68rem; color: #EF4444; font-weight: 700;">Mobile Bank</span>
-          </label>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.65rem;">
+          ${gateways.map((gw, idx) => `
+            <label style="cursor: pointer; border: 1.5px solid ${idx === 0 ? 'var(--cyan)' : 'var(--border-color)'}; border-radius: var(--radius-md); padding: 0.75rem 0.5rem; text-align: center; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; gap: 0.4rem;">
+              <input type="radio" name="deposit-gateway" value="${gw.id}" data-provider="${gw.provider}" ${idx === 0 ? 'checked' : ''} onchange="selectDepositGateway('${gw.id}')" style="display: none;" />
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(6, 182, 212, 0.15); display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--cyan); font-size: 1.1rem;">
+                ${gw.provider === 'esewa' ? '🟢' : gw.provider === 'khalti' ? '🟣' : gw.provider === 'fonepay' ? '🔴' : '💳'}
+              </div>
+              <span style="font-size: 0.82rem; font-weight: 800; color: var(--primary-text);">${escapeHtml(gw.name)}</span>
+              <span style="font-size: 0.68rem; color: #10B981; font-weight: 700;">Instant QR</span>
+            </label>
+          `).join('')}
         </div>
       </div>
 
@@ -4177,10 +4188,10 @@ function updateDepositNprPreview(val) {
 }
 window.updateDepositNprPreview = updateDepositNprPreview;
 
-function selectDepositGateway(gw) {
+function selectDepositGateway(gwId) {
   document.querySelectorAll('input[name="deposit-gateway"]').forEach(radio => {
     const parent = radio.closest('label');
-    if (radio.value === gw) {
+    if (radio.value === gwId) {
       radio.checked = true;
       if (parent) parent.style.borderColor = 'var(--cyan)';
     } else {
@@ -4192,7 +4203,9 @@ window.selectDepositGateway = selectDepositGateway;
 
 async function proceedToDepositQr() {
   const amount = parseFloat(document.getElementById('deposit-amount-input')?.value || 0);
-  const selectedGw = document.querySelector('input[name="deposit-gateway"]:checked')?.value || 'esewa';
+  const selectedRadio = document.querySelector('input[name="deposit-gateway"]:checked');
+  const gwId = selectedRadio?.value || 'gw_esewa';
+  const provider = selectedRadio?.getAttribute('data-provider') || 'esewa';
 
   if (!amount || amount <= 0) {
     Toast.show('Please enter a valid deposit amount', 'error');
@@ -4206,8 +4219,8 @@ async function proceedToDepositQr() {
   }
 
   try {
-    const res = await API.depositWallet(amount, selectedGw);
-    openDepositQrModal(amount, selectedGw, res.orderId);
+    const res = await API.depositWallet(amount, provider);
+    openDepositQrModal(amount, gwId, res.orderId);
   } catch (err) {
     Toast.show('Failed to initialize deposit: ' + err.message, 'error');
     if (btn) {
@@ -4218,25 +4231,26 @@ async function proceedToDepositQr() {
 }
 window.proceedToDepositQr = proceedToDepositQr;
 
-function openDepositQrModal(amount, provider, orderId) {
+function openDepositQrModal(amount, gwIdOrProvider, orderId) {
   CURRENT_DEPOSIT_SCREENSHOT = null;
   const activeCountry = getActiveCountry();
   const rate = activeCountry.rate || 135;
   const localAmount = (amount * rate).toLocaleString(undefined, { maximumFractionDigits: 0 });
   const remarksCode = 'DEP-' + orderId.slice(-6).toUpperCase();
 
-  const providerNames = {
-    'esewa': 'eSewa Mobile Wallet',
-    'khalti': 'Khalti Digital Wallet',
-    'fonepay': 'Fonepay / Mobile Banking'
+  const gw = (STATE.cachedPaymentGateways || []).find(g => g.id === gwIdOrProvider || g.provider === gwIdOrProvider) || {
+    name: 'Official Gaming Store QR',
+    provider: gwIdOrProvider,
+    qr_image_url: `/assets/payment/${gwIdOrProvider}_qr.svg`,
+    receiver_name: 'TnT Gaming Store Official',
+    receiver_number: '9801234567',
+    instructions: 'Scan with your digital wallet or mobile banking app, complete transfer, and upload receipt screenshot below.'
   };
-  const providerColors = {
-    'esewa': '#10B981',
-    'khalti': '#8B5CF6',
-    'fonepay': '#EF4444'
-  };
-  const qrSvgUrl = `/assets/payment/${provider}_qr.svg`;
-  const merchantNumber = '9801234567';
+
+  const qrImageUrl = gw.qr_image_url || `/assets/payment/${gw.provider}_qr.svg`;
+  const receiverName = gw.receiver_name || 'TnT Gaming Store Official';
+  const merchantNumber = gw.receiver_number || '9801234567';
+  const instructions = gw.instructions || `Scan with your ${gw.name} app, complete transfer, and upload receipt screenshot below.`;
 
   const modalHtml = `
     <div style="display: flex; flex-direction: column; gap: 1.15rem; max-height: 80vh; overflow-y: auto; padding-right: 2px;">
@@ -4244,17 +4258,17 @@ function openDepositQrModal(amount, provider, orderId) {
       <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: var(--radius-md); padding: 0.85rem; display: flex; align-items: center; gap: 0.75rem;">
         <span style="font-size: 1.4rem;">📱</span>
         <div style="font-size: 0.82rem; color: var(--primary-text); line-height: 1.4;">
-          <strong>Scan &amp; Pay:</strong> Scan the QR code with your <strong>${providerNames[provider] || provider.toUpperCase()}</strong> app, complete transfer, and upload receipt screenshot below.
+          <strong>Scan &amp; Pay:</strong> ${escapeHtml(instructions)}
         </div>
       </div>
 
       <!-- QR Card Center Display -->
       <div style="background: var(--card-bg); border: 2px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: var(--shadow-sm);">
-        <div style="width: 210px; height: 210px; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.12); margin-bottom: 1rem; border: 1px solid #e2e8f0;">
-          <img src="${qrSvgUrl}" alt="${provider.toUpperCase()} QR" style="width: 100%; height: 100%; object-fit: contain;" />
+        <div style="width: 210px; height: 210px; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.12); margin-bottom: 1rem; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
+          <img src="${escapeHtml(qrImageUrl)}" alt="${escapeHtml(gw.name)} QR" style="width: 100%; height: 100%; object-fit: contain;" />
         </div>
 
-        <div style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 900; color: ${providerColors[provider] || 'var(--cyan)'}; margin-bottom: 0.15rem;">
+        <div style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 900; color: var(--cyan); margin-bottom: 0.15rem;">
           ${activeCountry.symbol}${localAmount} ${activeCountry.currency}
         </div>
         <div style="font-size: 0.85rem; color: var(--secondary-text); font-weight: 600; margin-bottom: 0.85rem;">
@@ -4265,15 +4279,17 @@ function openDepositQrModal(amount, provider, orderId) {
         <div style="width: 100%; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.82rem; text-align: left;">
           <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-primary); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
             <span style="color: var(--secondary-text);">Receiver Name:</span>
-            <strong style="color: var(--primary-text);">TnT Gaming Store Official</strong>
+            <strong style="color: var(--primary-text);">${escapeHtml(receiverName)}</strong>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-primary); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-            <span style="color: var(--secondary-text);">${provider.toUpperCase()} Number:</span>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <strong style="color: var(--cyan);">${merchantNumber}</strong>
-              <button type="button" class="btn btn-xs btn-secondary" onclick="copyToClipboard('${merchantNumber}', 'Merchant Number')">Copy</button>
+          ${merchantNumber ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-primary); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <span style="color: var(--secondary-text);">${escapeHtml(gw.name)} Number/ID:</span>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <strong style="color: var(--cyan);">${escapeHtml(merchantNumber)}</strong>
+                <button type="button" class="btn btn-xs btn-secondary" onclick="copyToClipboard('${escapeHtml(merchantNumber).replace(/'/g, "\\'")}', 'Merchant Number')">Copy</button>
+              </div>
             </div>
-          </div>
+          ` : ''}
           <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 107, 36, 0.08); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid rgba(255, 107, 36, 0.3);">
             <span style="color: var(--fire-orange); font-weight: 700;">Payment Remarks / Ref:</span>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -5479,6 +5495,19 @@ async function renderAdminView(container) {
               <span>Top-Up Orders</span>
             </span>
           </button>
+          <button class="admin-sidebar-link ${STATE.adminSubTab === 'gateways' ? 'active' : ''}" data-subtab="gateways" onclick="switchAdminSubTab('gateways')">
+            <span class="admin-link-content">
+              <span class="admin-link-icon">💳</span>
+              <span>Payment QR &amp; Gateways</span>
+            </span>
+            <span class="admin-badge-new">QR</span>
+          </button>
+          <button class="admin-sidebar-link ${STATE.adminSubTab === 'banners' ? 'active' : ''}" data-subtab="banners" onclick="switchAdminSubTab('banners')">
+            <span class="admin-link-content">
+              <span class="admin-link-icon">🎨</span>
+              <span>Hero Banners &amp; Top Things</span>
+            </span>
+          </button>
 
           <div class="admin-nav-group-title">TOURNAMENT ENGINE</div>
           <button class="admin-sidebar-link ${STATE.adminSubTab === 'tournaments' ? 'active' : ''}" data-subtab="tournaments" onclick="switchAdminSubTab('tournaments')">
@@ -5530,19 +5559,15 @@ async function renderAdminView(container) {
           </button>
         </nav>
 
-        <!-- Sidebar Footer & Persona Switcher -->
+        <!-- Sidebar Footer -->
         <div class="admin-sidebar-footer">
-          <div class="admin-role-switch-box">
-            <label class="admin-role-label">Switch Spec Persona</label>
-            <select class="admin-role-select" onchange="STATE.switchUser(this.value)">
-              ${(STATE.allUsers || []).map(u => `
-                <option value="${u.id}" ${u.id === user.id ? 'selected' : ''}>
-                  ${u.display_name} (${u.role.replace('_', ' ')})
-                </option>
-              `).join('')}
-            </select>
+          <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: 0.6rem;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; box-shadow: 0 0 6px #10B981;"></div>
+            <div style="font-size: 0.75rem; color: var(--primary-text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              Verified Administrator
+            </div>
           </div>
-          <button class="btn btn-sm btn-outline-cyan admin-exit-btn" onclick="switchTab('home')">
+          <button class="btn btn-sm btn-outline-cyan admin-exit-btn" onclick="switchTab('home')" style="width: 100%; justify-content: center;">
             <span>←</span> Exit to Player View
           </button>
         </div>
@@ -5629,6 +5654,8 @@ async function renderAdminSubTab() {
       'users': 'User Management & Risk Guard',
       'disputes': 'Dispute Resolution Queue',
       'audit': 'Immutable Audit Trail',
+      'gateways': 'Payment QR & Gateways Operations',
+      'banners': 'Hero Banners & Top Things Operations',
       'webhook': 'Payment Gateway Webhook Simulator'
     };
     crumbEl.textContent = titles[STATE.adminSubTab] || 'Operations';
@@ -5652,6 +5679,12 @@ async function renderAdminSubTab() {
       break;
     case 'orders':
       await renderAdminOrdersSubTab(container);
+      break;
+    case 'gateways':
+      await renderAdminGatewaysSubTab(container);
+      break;
+    case 'banners':
+      await renderAdminBannersSubTab(container);
       break;
     case 'tournaments':
       await renderAdminTournamentsSubTab(container);
@@ -6379,6 +6412,674 @@ async function refundAdminOrder(orderId) {
     Toast.show('Refund failed: ' + err.message, 'error');
   }
 }
+
+// -------------------------------------------------------------
+// ADMIN: PAYMENT GATEWAYS & QR CODE MANAGEMENT
+// -------------------------------------------------------------
+async function renderAdminGatewaysSubTab(container) {
+  let gateways = [];
+  try {
+    gateways = await API.getAdminPaymentGateways();
+  } catch (err) {
+    gateways = [];
+  }
+
+  container.innerHTML = `
+    <div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h2 style="font-family: var(--font-display); font-size: 1.45rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.25rem;">
+            💳 Payment QR Codes &amp; Gateways
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">
+            Upload and configure payment QR codes (eSewa, Khalti, Fonepay, USDT, Bank Transfer). These QR codes and account details dynamically populate in the player's Deposit Modal and Checkout.
+          </p>
+        </div>
+        <button class="btn btn-primary" onclick="openAddPaymentGatewayModal()" style="font-weight: 800;">
+          ➕ Add Payment QR / Gateway
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+        ${gateways.length > 0 ? gateways.map(gw => `
+          <div style="background: var(--card-bg); border: 1.5px solid ${gw.active ? 'var(--border-color)' : 'rgba(239, 68, 68, 0.35)'}; border-radius: var(--radius-lg); padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-sm); position: relative; opacity: ${gw.active ? '1' : '0.75'};">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; gap: 0.5rem;">
+                <div>
+                  <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.25rem;">
+                    ${escapeHtml(gw.name)}
+                  </h3>
+                  <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+                    <span class="badge" style="background: rgba(255, 107, 36, 0.15); color: var(--fire-orange); font-size: 0.68rem; font-weight: 800; text-transform: uppercase;">
+                      ${escapeHtml(gw.provider)}
+                    </span>
+                    <span class="badge" style="${gw.active ? 'background: rgba(16, 185, 129, 0.15); color: #10B981;' : 'background: rgba(239, 68, 68, 0.15); color: #EF4444;'} font-size: 0.68rem; font-weight: 800;">
+                      ${gw.active ? '● LIVE' : '○ DISABLED'}
+                    </span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted);">Sort: #${gw.sort_order}</span>
+                  </div>
+                </div>
+                <div style="width: 80px; height: 80px; border-radius: var(--radius-md); overflow: hidden; background: #ffffff; padding: 4px; border: 1px solid var(--border-color); flex-shrink: 0; cursor: pointer; text-align: center;" onclick="previewQrLarge('${escapeHtml(gw.qr_image_url).replace(/'/g, "\\'")}', '${escapeHtml(gw.name).replace(/'/g, "\\'")}')" title="Click to enlarge QR Code">
+                  <img src="${escapeHtml(gw.qr_image_url)}" alt="${escapeHtml(gw.name)}" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.src='/assets/payment/esewa_qr.svg'" />
+                </div>
+              </div>
+
+              <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem; margin-bottom: 1rem; font-size: 0.82rem;">
+                <div style="margin-bottom: 0.35rem; display: flex; justify-content: space-between;">
+                  <span style="color: var(--text-muted);">Receiver Account:</span>
+                  <strong style="color: var(--text-main);">${escapeHtml(gw.receiver_name)}</strong>
+                </div>
+                <div style="margin-bottom: 0.35rem; display: flex; justify-content: space-between;">
+                  <span style="color: var(--text-muted);">Number / ID:</span>
+                  <code style="color: var(--cyan); font-weight: 700;">${escapeHtml(gw.receiver_number)}</code>
+                </div>
+                ${gw.instructions ? `
+                  <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color); font-size: 0.76rem; color: var(--secondary-text); line-height: 1.35;">
+                    💡 ${escapeHtml(gw.instructions)}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+              <button class="btn btn-xs ${gw.active ? 'btn-secondary' : 'btn-success'}" onclick="toggleGatewayActive('${gw.id}', ${gw.active ? 1 : 0})">
+                ${gw.active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button class="btn btn-xs btn-secondary" onclick="openEditPaymentGatewayModal('${gw.id}')">
+                ✏️ Edit
+              </button>
+              <button class="btn btn-xs btn-danger" onclick="deletePaymentGateway('${gw.id}', '${escapeHtml(gw.name).replace(/'/g, "\\'")}')">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `).join('') : `
+          <div style="grid-column: 1 / -1; padding: 3rem; text-align: center; background: var(--card-bg); border: 1px dashed var(--border-color); border-radius: var(--radius-lg);">
+            <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">💳</div>
+            <h3 style="font-weight: 800; color: var(--primary-text); margin-bottom: 0.25rem;">No Payment Gateways Configured</h3>
+            <p style="color: var(--secondary-text); font-size: 0.85rem; margin-bottom: 1rem;">Add your first payment gateway or QR code so players can deposit funds.</p>
+            <button class="btn btn-sm btn-primary" onclick="openAddPaymentGatewayModal()">➕ Add Payment Gateway</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+window.renderAdminGatewaysSubTab = renderAdminGatewaysSubTab;
+
+function previewQrLarge(imageUrl, title) {
+  const modalHtml = `
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 1rem 0;">
+      <div style="background: #ffffff; padding: 1.25rem; border-radius: var(--radius-md); box-shadow: var(--shadow-md); max-width: 320px; width: 100%; text-align: center;">
+        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" style="width: 100%; height: auto; max-height: 320px; object-fit: contain;" />
+      </div>
+      <p style="color: var(--secondary-text); font-size: 0.85rem; text-align: center;">
+        Official payment QR code for <strong>${escapeHtml(title)}</strong>
+      </p>
+      <div style="display: flex; gap: 0.6rem;">
+        <a href="${escapeHtml(imageUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-cyan">
+          Open Image In Full Size ↗
+        </a>
+        <button class="btn btn-sm btn-secondary" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  `;
+  openModal(`QR Code: ${title}`, modalHtml);
+}
+window.previewQrLarge = previewQrLarge;
+
+async function toggleGatewayActive(gatewayId, currentActive) {
+  try {
+    await API.updateAdminPaymentGateway(gatewayId, { active: currentActive ? 0 : 1 });
+    Toast.show(`Payment gateway ${currentActive ? 'deactivated' : 'activated'}`, 'success');
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error updating gateway: ' + err.message, 'error');
+  }
+}
+window.toggleGatewayActive = toggleGatewayActive;
+
+async function deletePaymentGateway(gatewayId, name) {
+  if (!confirm(`Are you sure you want to delete payment gateway "${name}"?`)) return;
+  try {
+    await API.deleteAdminPaymentGateway(gatewayId);
+    Toast.show('Payment gateway deleted successfully', 'success');
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error deleting gateway: ' + err.message, 'error');
+  }
+}
+window.deletePaymentGateway = deletePaymentGateway;
+
+function openAddPaymentGatewayModal() {
+  const modalHtml = `
+    <form onsubmit="submitAddPaymentGateway(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Gateway Display Name *</label>
+        <input type="text" id="add-gw-name" class="input input-sm" placeholder="e.g. eSewa Direct QR, Khalti Wallet, USDT TRC20" required style="width: 100%;" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Provider *</label>
+          <select id="add-gw-provider" class="input input-sm" style="width: 100%;">
+            <option value="esewa">eSewa</option>
+            <option value="khalti">Khalti</option>
+            <option value="fonepay">Fonepay</option>
+            <option value="imepay">IME Pay</option>
+            <option value="bank">Bank Transfer</option>
+            <option value="usdt">Crypto / USDT</option>
+            <option value="other">Other / Custom</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Sort Order</label>
+          <input type="number" id="add-gw-sort" class="input input-sm" value="1" min="0" style="width: 100%;" />
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Receiver Account Name *</label>
+          <input type="text" id="add-gw-receiver-name" class="input input-sm" placeholder="e.g. TnT Official / Store Merchant" value="TnT Official Store" required style="width: 100%;" />
+        </div>
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Receiver Phone / Wallet ID *</label>
+          <input type="text" id="add-gw-receiver-number" class="input input-sm" placeholder="e.g. 9801234567 or Wallet Address" required style="width: 100%;" />
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Payment QR Image *</label>
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <input type="file" id="add-gw-file" accept="image/*" class="input input-sm" style="display: none;" onchange="handleGatewayFileUpload(this, 'add-gw-qr', 'add-gw-preview')" />
+          <button type="button" class="btn btn-sm btn-cyan" onclick="document.getElementById('add-gw-file').click()">
+            📁 Choose &amp; Upload QR Image
+          </button>
+          <span id="add-gw-upload-status" style="font-size: 0.75rem; color: var(--secondary-text);">Upload QR image file or paste URL below</span>
+        </div>
+        <input type="text" id="add-gw-qr" class="input input-sm" placeholder="/assets/payment/esewa_qr.svg or https://..." required style="width: 100%;" oninput="document.getElementById('add-gw-preview').src = this.value" />
+        <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 60px; height: 60px; border-radius: 6px; background: #fff; padding: 3px; border: 1px solid var(--border-color); overflow: hidden;">
+            <img id="add-gw-preview" src="/assets/payment/esewa_qr.svg" style="width: 100%; height: 100%; object-fit: contain;" />
+          </div>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">Live QR Preview</span>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Payment Instructions (Shown to player during checkout)</label>
+        <textarea id="add-gw-instructions" class="input input-sm" rows="2" style="width: 100%; resize: vertical;" placeholder="e.g. Scan QR code, put your Order Reference in the Remarks, and take a screenshot of the completed transfer."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.5rem;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Save &amp; Activate Gateway</button>
+      </div>
+    </form>
+  `;
+
+  openModal('➕ Add Payment QR / Gateway', modalHtml);
+}
+window.openAddPaymentGatewayModal = openAddPaymentGatewayModal;
+
+async function handleGatewayFileUpload(fileInput, targetInputId, previewImgId) {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('add-gw-upload-status') || document.getElementById('edit-gw-upload-status');
+  if (statusEl) statusEl.textContent = '⏳ Uploading image...';
+
+  try {
+    const url = await API.uploadFile(file);
+    const targetInput = document.getElementById(targetInputId);
+    const previewImg = document.getElementById(previewImgId);
+    if (targetInput) targetInput.value = url;
+    if (previewImg) previewImg.src = url;
+    if (statusEl) statusEl.textContent = '✅ Uploaded successfully!';
+    Toast.show('QR Image uploaded successfully', 'success');
+  } catch (err) {
+    if (statusEl) statusEl.textContent = '❌ Upload failed: ' + err.message;
+    Toast.show('Upload error: ' + err.message, 'error');
+  }
+}
+window.handleGatewayFileUpload = handleGatewayFileUpload;
+
+async function submitAddPaymentGateway(event) {
+  event.preventDefault();
+  const name = document.getElementById('add-gw-name').value.trim();
+  const provider = document.getElementById('add-gw-provider').value;
+  const sortOrder = parseInt(document.getElementById('add-gw-sort').value, 10) || 0;
+  const receiverName = document.getElementById('add-gw-receiver-name').value.trim();
+  const receiverNumber = document.getElementById('add-gw-receiver-number').value.trim();
+  const qrImageUrl = document.getElementById('add-gw-qr').value.trim();
+  const instructions = document.getElementById('add-gw-instructions').value.trim();
+
+  try {
+    await API.createAdminPaymentGateway({
+      name,
+      provider,
+      sortOrder,
+      receiverName,
+      receiverNumber,
+      qrImageUrl,
+      instructions,
+      active: 1
+    });
+    Toast.show('Payment gateway added successfully!', 'success');
+    closeModal();
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error creating gateway: ' + err.message, 'error');
+  }
+}
+window.submitAddPaymentGateway = submitAddPaymentGateway;
+
+async function openEditPaymentGatewayModal(gatewayId) {
+  const gateways = await API.getAdminPaymentGateways().catch(() => []);
+  const gw = gateways.find(g => g.id === gatewayId);
+  if (!gw) return Toast.show('Payment gateway not found', 'error');
+
+  const modalHtml = `
+    <form onsubmit="submitEditPaymentGateway(event, '${gw.id}')" style="display: flex; flex-direction: column; gap: 1rem;">
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Gateway Display Name *</label>
+        <input type="text" id="edit-gw-name" class="input input-sm" value="${escapeHtml(gw.name)}" required style="width: 100%;" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Provider *</label>
+          <select id="edit-gw-provider" class="input input-sm" style="width: 100%;">
+            <option value="esewa" ${gw.provider === 'esewa' ? 'selected' : ''}>eSewa</option>
+            <option value="khalti" ${gw.provider === 'khalti' ? 'selected' : ''}>Khalti</option>
+            <option value="fonepay" ${gw.provider === 'fonepay' ? 'selected' : ''}>Fonepay</option>
+            <option value="imepay" ${gw.provider === 'imepay' ? 'selected' : ''}>IME Pay</option>
+            <option value="bank" ${gw.provider === 'bank' ? 'selected' : ''}>Bank Transfer</option>
+            <option value="usdt" ${gw.provider === 'usdt' ? 'selected' : ''}>Crypto / USDT</option>
+            <option value="other" ${gw.provider === 'other' ? 'selected' : ''}>Other / Custom</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Sort Order</label>
+          <input type="number" id="edit-gw-sort" class="input input-sm" value="${gw.sort_order || 0}" min="0" style="width: 100%;" />
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Receiver Account Name *</label>
+          <input type="text" id="edit-gw-receiver-name" class="input input-sm" value="${escapeHtml(gw.receiver_name)}" required style="width: 100%;" />
+        </div>
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Receiver Phone / Wallet ID *</label>
+          <input type="text" id="edit-gw-receiver-number" class="input input-sm" value="${escapeHtml(gw.receiver_number)}" required style="width: 100%;" />
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Payment QR Image *</label>
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <input type="file" id="edit-gw-file" accept="image/*" class="input input-sm" style="display: none;" onchange="handleGatewayFileUpload(this, 'edit-gw-qr', 'edit-gw-preview')" />
+          <button type="button" class="btn btn-sm btn-cyan" onclick="document.getElementById('edit-gw-file').click()">
+            📁 Replace QR Image
+          </button>
+          <span id="edit-gw-upload-status" style="font-size: 0.75rem; color: var(--secondary-text);">Upload QR image file or edit URL</span>
+        </div>
+        <input type="text" id="edit-gw-qr" class="input input-sm" value="${escapeHtml(gw.qr_image_url)}" required style="width: 100%;" oninput="document.getElementById('edit-gw-preview').src = this.value" />
+        <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 60px; height: 60px; border-radius: 6px; background: #fff; padding: 3px; border: 1px solid var(--border-color); overflow: hidden;">
+            <img id="edit-gw-preview" src="${escapeHtml(gw.qr_image_url)}" style="width: 100%; height: 100%; object-fit: contain;" />
+          </div>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">Current QR Preview</span>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Payment Instructions</label>
+        <textarea id="edit-gw-instructions" class="input input-sm" rows="2" style="width: 100%; resize: vertical;">${escapeHtml(gw.instructions || '')}</textarea>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Active Status</label>
+        <select id="edit-gw-active" class="input input-sm" style="width: 100%;">
+          <option value="1" ${gw.active ? 'selected' : ''}>Active (Visible in Checkout &amp; Deposit)</option>
+          <option value="0" ${!gw.active ? 'selected' : ''}>Inactive (Hidden)</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.5rem;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Save Changes</button>
+      </div>
+    </form>
+  `;
+
+  openModal(`✏️ Edit Payment Gateway: ${gw.name}`, modalHtml);
+}
+window.openEditPaymentGatewayModal = openEditPaymentGatewayModal;
+
+async function submitEditPaymentGateway(event, gatewayId) {
+  event.preventDefault();
+  const name = document.getElementById('edit-gw-name').value.trim();
+  const provider = document.getElementById('edit-gw-provider').value;
+  const sortOrder = parseInt(document.getElementById('edit-gw-sort').value, 10) || 0;
+  const receiverName = document.getElementById('edit-gw-receiver-name').value.trim();
+  const receiverNumber = document.getElementById('edit-gw-receiver-number').value.trim();
+  const qrImageUrl = document.getElementById('edit-gw-qr').value.trim();
+  const instructions = document.getElementById('edit-gw-instructions').value.trim();
+  const active = parseInt(document.getElementById('edit-gw-active').value, 10);
+
+  try {
+    await API.updateAdminPaymentGateway(gatewayId, {
+      name,
+      provider,
+      sortOrder,
+      receiverName,
+      receiverNumber,
+      qrImageUrl,
+      instructions,
+      active
+    });
+    Toast.show('Payment gateway updated successfully!', 'success');
+    closeModal();
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error updating gateway: ' + err.message, 'error');
+  }
+}
+window.submitEditPaymentGateway = submitEditPaymentGateway;
+
+// -------------------------------------------------------------
+// ADMIN: HOMEPAGE BANNERS & "TOP THINGS" OPERATIONS
+// -------------------------------------------------------------
+async function renderAdminBannersSubTab(container) {
+  let banners = [];
+  try {
+    banners = await API.getAdminBanners();
+  } catch (err) {
+    banners = [];
+  }
+
+  container.innerHTML = `
+    <div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h2 style="font-family: var(--font-display); font-size: 1.45rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.25rem;">
+            🎨 Hero Promotional Banners &amp; "Top Things"
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">
+            Control the 3D Peek-Carousel Billboard Banners displayed at the very top of the homepage. Feature tournaments, diamond topup discounts, and custom destination links.
+          </p>
+        </div>
+        <button class="btn btn-primary" onclick="openAddBannerModal()" style="font-weight: 800;">
+          ➕ Add Billboard Banner
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.25rem;">
+        ${banners.length > 0 ? banners.map(b => `
+          <div style="background: var(--card-bg); border: 1.5px solid ${b.active ? 'var(--border-color)' : 'rgba(239, 68, 68, 0.35)'}; border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--shadow-sm); opacity: ${b.active ? '1' : '0.75'};">
+            <div>
+              <div style="position: relative; width: 100%; aspect-ratio: 16/9; background: #0c1527; overflow: hidden;">
+                <img src="${escapeHtml(b.image_url)}" alt="${escapeHtml(b.title)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/assets/banners/tournament_promo.webp'" />
+                ${b.badge_text ? `
+                  <div style="position: absolute; top: 10px; left: 10px; background: rgba(255, 107, 36, 0.9); color: #fff; font-weight: 800; font-size: 0.72rem; padding: 0.25rem 0.6rem; border-radius: var(--radius-full); box-shadow: var(--shadow-sm); text-transform: uppercase;">
+                    ${escapeHtml(b.badge_text)}
+                  </div>
+                ` : ''}
+                <div style="position: absolute; top: 10px; right: 10px; background: ${b.active ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)'}; color: #fff; font-weight: 800; font-size: 0.68rem; padding: 0.2rem 0.55rem; border-radius: var(--radius-full);">
+                  ${b.active ? '● LIVE' : '○ HIDDEN'}
+                </div>
+              </div>
+
+              <div style="padding: 1rem 1.25rem;">
+                <h3 style="font-size: 1.08rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.35rem;">
+                  ${escapeHtml(b.title)}
+                </h3>
+                <div style="font-size: 0.8rem; color: var(--secondary-text); display: flex; flex-direction: column; gap: 0.25rem;">
+                  <div>🔗 Link: <code style="color: var(--cyan);">${escapeHtml(b.link_url || '#')}</code></div>
+                  <div>🔢 Sort Order: <strong>#${b.sort_order}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; border-top: 1px solid var(--border-color); padding: 0.75rem 1.25rem; background: rgba(0, 0, 0, 0.1);">
+              <button class="btn btn-xs ${b.active ? 'btn-secondary' : 'btn-success'}" onclick="toggleBannerActive('${b.id}', ${b.active ? 1 : 0})">
+                ${b.active ? 'Hide Banner' : 'Publish Live'}
+              </button>
+              <button class="btn btn-xs btn-secondary" onclick="openEditBannerModal('${b.id}')">
+                ✏️ Edit
+              </button>
+              <button class="btn btn-xs btn-danger" onclick="deleteBanner('${b.id}', '${escapeHtml(b.title).replace(/'/g, "\\'")}')">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `).join('') : `
+          <div style="grid-column: 1 / -1; padding: 3rem; text-align: center; background: var(--card-bg); border: 1px dashed var(--border-color); border-radius: var(--radius-lg);">
+            <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🎨</div>
+            <h3 style="font-weight: 800; color: var(--primary-text); margin-bottom: 0.25rem;">No Banners Configured</h3>
+            <p style="color: var(--secondary-text); font-size: 0.85rem; margin-bottom: 1rem;">Add promotional billboard banners to show at the top of the homepage.</p>
+            <button class="btn btn-sm btn-primary" onclick="openAddBannerModal()">➕ Add Billboard Banner</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+window.renderAdminBannersSubTab = renderAdminBannersSubTab;
+
+async function toggleBannerActive(bannerId, currentActive) {
+  try {
+    await API.updateAdminBanner(bannerId, { active: currentActive ? 0 : 1 });
+    Toast.show(`Banner ${currentActive ? 'hidden' : 'published'} successfully`, 'success');
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error updating banner: ' + err.message, 'error');
+  }
+}
+window.toggleBannerActive = toggleBannerActive;
+
+async function deleteBanner(bannerId, title) {
+  if (!confirm(`Are you sure you want to delete banner "${title}"?`)) return;
+  try {
+    await API.deleteAdminBanner(bannerId);
+    Toast.show('Banner deleted successfully', 'success');
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error deleting banner: ' + err.message, 'error');
+  }
+}
+window.deleteBanner = deleteBanner;
+
+function openAddBannerModal() {
+  const modalHtml = `
+    <form onsubmit="submitAddBanner(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Banner Headline / Title *</label>
+        <input type="text" id="add-ban-title" class="input input-sm" placeholder="e.g. Free Fire Mega Championship 2026, MLBB 50% Top-Up Bonus" required style="width: 100%;" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Badge Tag (Optional)</label>
+          <input type="text" id="add-ban-badge" class="input input-sm" placeholder="e.g. HOT PROMO, MEGA EVENT, NEW" style="width: 100%;" />
+        </div>
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Sort Order</label>
+          <input type="number" id="add-ban-sort" class="input input-sm" value="1" min="0" style="width: 100%;" />
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Banner Artwork / Image *</label>
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <input type="file" id="add-ban-file" accept="image/*" class="input input-sm" style="display: none;" onchange="handleBannerFileUpload(this, 'add-ban-img', 'add-ban-preview')" />
+          <button type="button" class="btn btn-sm btn-cyan" onclick="document.getElementById('add-ban-file').click()">
+            📁 Choose &amp; Upload Banner Image
+          </button>
+          <span id="add-ban-upload-status" style="font-size: 0.75rem; color: var(--secondary-text);">Upload image (16:9 recommended) or enter URL</span>
+        </div>
+        <input type="text" id="add-ban-img" class="input input-sm" placeholder="/assets/banners/tournament_promo.webp or https://..." required style="width: 100%;" oninput="document.getElementById('add-ban-preview').src = this.value" />
+        <div style="margin-top: 0.5rem; width: 100%; height: 110px; border-radius: 8px; background: #0c1527; overflow: hidden; border: 1px solid var(--border-color);">
+          <img id="add-ban-preview" src="/assets/banners/tournament_promo.webp" style="width: 100%; height: 100%; object-fit: cover;" />
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Destination Link URL</label>
+        <input type="text" id="add-ban-link" class="input input-sm" placeholder="#topup, #tournaments, #arcade, or external https:// link" value="#topup" style="width: 100%;" />
+        <span style="font-size: 0.74rem; color: var(--text-muted);">Use hash link like #topup, #tournaments or an external link</span>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.5rem;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Save &amp; Publish Banner</button>
+      </div>
+    </form>
+  `;
+
+  openModal('➕ Add Billboard Banner', modalHtml);
+}
+window.openAddBannerModal = openAddBannerModal;
+
+async function handleBannerFileUpload(fileInput, targetInputId, previewImgId) {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('add-ban-upload-status') || document.getElementById('edit-ban-upload-status');
+  if (statusEl) statusEl.textContent = '⏳ Uploading banner...';
+
+  try {
+    const url = await API.uploadFile(file);
+    const targetInput = document.getElementById(targetInputId);
+    const previewImg = document.getElementById(previewImgId);
+    if (targetInput) targetInput.value = url;
+    if (previewImg) previewImg.src = url;
+    if (statusEl) statusEl.textContent = '✅ Uploaded successfully!';
+    Toast.show('Banner image uploaded successfully', 'success');
+  } catch (err) {
+    if (statusEl) statusEl.textContent = '❌ Upload failed: ' + err.message;
+    Toast.show('Upload error: ' + err.message, 'error');
+  }
+}
+window.handleBannerFileUpload = handleBannerFileUpload;
+
+async function submitAddBanner(event) {
+  event.preventDefault();
+  const title = document.getElementById('add-ban-title').value.trim();
+  const badgeText = document.getElementById('add-ban-badge').value.trim();
+  const sortOrder = parseInt(document.getElementById('add-ban-sort').value, 10) || 0;
+  const imageUrl = document.getElementById('add-ban-img').value.trim();
+  const linkUrl = document.getElementById('add-ban-link').value.trim();
+
+  try {
+    await API.createAdminBanner({
+      title,
+      badgeText: badgeText || null,
+      sortOrder,
+      imageUrl,
+      linkUrl: linkUrl || '#',
+      active: 1
+    });
+    Toast.show('Banner created successfully!', 'success');
+    closeModal();
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error creating banner: ' + err.message, 'error');
+  }
+}
+window.submitAddBanner = submitAddBanner;
+
+async function openEditBannerModal(bannerId) {
+  const banners = await API.getAdminBanners().catch(() => []);
+  const b = banners.find(item => item.id === bannerId);
+  if (!b) return Toast.show('Banner not found', 'error');
+
+  const modalHtml = `
+    <form onsubmit="submitEditBanner(event, '${b.id}')" style="display: flex; flex-direction: column; gap: 1rem;">
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Banner Headline / Title *</label>
+        <input type="text" id="edit-ban-title" class="input input-sm" value="${escapeHtml(b.title)}" required style="width: 100%;" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Badge Tag</label>
+          <input type="text" id="edit-ban-badge" class="input input-sm" value="${escapeHtml(b.badge_text || '')}" placeholder="e.g. HOT PROMO, MEGA EVENT" style="width: 100%;" />
+        </div>
+        <div>
+          <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Sort Order</label>
+          <input type="number" id="edit-ban-sort" class="input input-sm" value="${b.sort_order || 0}" min="0" style="width: 100%;" />
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Banner Artwork / Image *</label>
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <input type="file" id="edit-ban-file" accept="image/*" class="input input-sm" style="display: none;" onchange="handleBannerFileUpload(this, 'edit-ban-img', 'edit-ban-preview')" />
+          <button type="button" class="btn btn-sm btn-cyan" onclick="document.getElementById('edit-ban-file').click()">
+            📁 Replace Banner Image
+          </button>
+          <span id="edit-ban-upload-status" style="font-size: 0.75rem; color: var(--secondary-text);">Upload new image or edit URL</span>
+        </div>
+        <input type="text" id="edit-ban-img" class="input input-sm" value="${escapeHtml(b.image_url)}" required style="width: 100%;" oninput="document.getElementById('edit-ban-preview').src = this.value" />
+        <div style="margin-top: 0.5rem; width: 100%; height: 110px; border-radius: 8px; background: #0c1527; overflow: hidden; border: 1px solid var(--border-color);">
+          <img id="edit-ban-preview" src="${escapeHtml(b.image_url)}" style="width: 100%; height: 100%; object-fit: cover;" />
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Destination Link URL</label>
+        <input type="text" id="edit-ban-link" class="input input-sm" value="${escapeHtml(b.link_url || '#')}" placeholder="#topup, #tournaments, #arcade, or external https:// link" style="width: 100%;" />
+      </div>
+
+      <div>
+        <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Active Status</label>
+        <select id="edit-ban-active" class="input input-sm" style="width: 100%;">
+          <option value="1" ${b.active ? 'selected' : ''}>Active (Visible on Homepage)</option>
+          <option value="0" ${!b.active ? 'selected' : ''}>Hidden (Draft / Inactive)</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.5rem;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Save Changes</button>
+      </div>
+    </form>
+  `;
+
+  openModal(`✏️ Edit Billboard Banner: ${b.title}`, modalHtml);
+}
+window.openEditBannerModal = openEditBannerModal;
+
+async function submitEditBanner(event, bannerId) {
+  event.preventDefault();
+  const title = document.getElementById('edit-ban-title').value.trim();
+  const badgeText = document.getElementById('edit-ban-badge').value.trim();
+  const sortOrder = parseInt(document.getElementById('edit-ban-sort').value, 10) || 0;
+  const imageUrl = document.getElementById('edit-ban-img').value.trim();
+  const linkUrl = document.getElementById('edit-ban-link').value.trim();
+  const active = parseInt(document.getElementById('edit-ban-active').value, 10);
+
+  try {
+    await API.updateAdminBanner(bannerId, {
+      title,
+      badgeText: badgeText || null,
+      sortOrder,
+      imageUrl,
+      linkUrl: linkUrl || '#',
+      active
+    });
+    Toast.show('Banner updated successfully!', 'success');
+    closeModal();
+    renderAdminSubTab();
+  } catch (err) {
+    Toast.show('Error updating banner: ' + err.message, 'error');
+  }
+}
+window.submitEditBanner = submitEditBanner;
 
 // 7.3 Admin Tournaments
 async function renderAdminTournamentsSubTab(container) {

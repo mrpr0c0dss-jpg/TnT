@@ -1388,12 +1388,16 @@ async function handleApiRequest(req, res, pathname, query, body) {
         return error('Unauthorized role for game deletion', 403);
       }
       const gameId = pathname.split('/')[4];
+      const force = query?.force === 'true' || body?.force;
       const ordersCount = db.prepare('SELECT COUNT(*) as count FROM topup_orders WHERE game_id = ?').get(gameId).count;
-      if (ordersCount > 0) {
+      if (ordersCount > 0 && !force) {
         db.prepare('UPDATE topup_games SET active = 0 WHERE id = ?').run(gameId);
         logAudit(currentUser.id, 'GAME_DEACTIVATE', 'topup_game', gameId, 'Deactivated game with existing orders');
         return json({ message: 'Game deactivated (retained for order history)', id: gameId });
       } else {
+        try {
+          db.prepare('UPDATE topup_orders SET game_id = NULL, package_id = NULL WHERE game_id = ?').run(gameId);
+        } catch (e) {}
         db.prepare('DELETE FROM topup_packages WHERE game_id = ?').run(gameId);
         db.prepare('DELETE FROM topup_games WHERE id = ?').run(gameId);
         logAudit(currentUser.id, 'GAME_DELETE', 'topup_game', gameId, 'Permanently deleted game');
@@ -1436,9 +1440,221 @@ async function handleApiRequest(req, res, pathname, query, body) {
         return error('Unauthorized role for package deletion', 403);
       }
       const pkgId = pathname.split('/')[4];
+      try {
+        db.prepare('UPDATE topup_orders SET package_id = NULL WHERE package_id = ?').run(pkgId);
+      } catch (e) {}
       db.prepare('DELETE FROM topup_packages WHERE id = ?').run(pkgId);
       logAudit(currentUser.id, 'PACKAGE_DELETE', 'topup_package', pkgId, 'Deleted package ' + pkgId);
       return json({ message: 'Package deleted successfully', id: pkgId });
+    }
+
+    // -------------------------------------------------------------
+    // PAYMENT GATEWAYS & QR CODE MANAGEMENT
+    // -------------------------------------------------------------
+    if (pathname === '/api/payment-gateways' && req.method === 'GET') {
+      const gateways = db.prepare('SELECT * FROM payment_gateways WHERE active = 1 ORDER BY sort_order ASC, created_at ASC').all();
+      return json(gateways);
+    }
+
+    if (pathname === '/api/admin/payment-gateways' && req.method === 'GET') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const gateways = db.prepare('SELECT * FROM payment_gateways ORDER BY sort_order ASC, created_at ASC').all();
+      return json(gateways);
+    }
+
+    if (pathname === '/api/admin/payment-gateways' && req.method === 'POST') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const b = body || {};
+      const name = b.name;
+      const provider = b.provider;
+      const qrImageUrl = b.qrImageUrl || b.qr_image_url;
+      const receiverName = b.receiverName || b.receiver_name;
+      const receiverNumber = b.receiverNumber || b.receiver_number;
+      const instructions = b.instructions;
+      const active = b.active !== undefined ? b.active : 1;
+      const sortOrder = b.sortOrder !== undefined ? b.sortOrder : (b.sort_order !== undefined ? b.sort_order : 0);
+
+      if (!name || !qrImageUrl) {
+        return error('Gateway name and QR image URL are required');
+      }
+      const id = 'gw_' + (provider ? provider.toLowerCase().replace(/[^a-z0-9]/g, '') : 'qr') + '_' + crypto.randomUUID().slice(0, 6);
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO payment_gateways (id, name, provider, qr_image_url, receiver_name, receiver_number, instructions, active, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        name,
+        provider || 'qr_gateway',
+        qrImageUrl,
+        receiverName || 'TnT Gaming Store Official',
+        receiverNumber || '',
+        instructions || '',
+        active ? 1 : 0,
+        Number(sortOrder) || 0,
+        now,
+        now
+      );
+      logAudit(currentUser.id, 'PAYMENT_GATEWAY_CREATE', 'payment_gateway', id, 'Created payment gateway ' + name);
+      return json({ message: 'Payment gateway created successfully', id }, 201);
+    }
+
+    if (pathname.startsWith('/api/admin/payment-gateways/') && req.method === 'PUT') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const id = pathname.split('/')[4];
+      const existing = db.prepare('SELECT * FROM payment_gateways WHERE id = ?').get(id);
+      if (!existing) return error('Payment gateway not found', 404);
+
+      const b = body || {};
+      const name = b.name;
+      const provider = b.provider;
+      const qrImageUrl = b.qrImageUrl !== undefined ? b.qrImageUrl : b.qr_image_url;
+      const receiverName = b.receiverName !== undefined ? b.receiverName : b.receiver_name;
+      const receiverNumber = b.receiverNumber !== undefined ? b.receiverNumber : b.receiver_number;
+      const instructions = b.instructions;
+      const active = b.active !== undefined ? b.active : undefined;
+      const sortOrder = b.sortOrder !== undefined ? b.sortOrder : b.sort_order;
+      const now = new Date().toISOString();
+      db.prepare(`
+        UPDATE payment_gateways
+        SET name = COALESCE(?, name),
+            provider = COALESCE(?, provider),
+            qr_image_url = COALESCE(?, qr_image_url),
+            receiver_name = COALESCE(?, receiver_name),
+            receiver_number = COALESCE(?, receiver_number),
+            instructions = COALESCE(?, instructions),
+            active = COALESCE(?, active),
+            sort_order = COALESCE(?, sort_order),
+            updated_at = ?
+        WHERE id = ?
+      `).run(
+        name !== undefined ? name : null,
+        provider !== undefined ? provider : null,
+        qrImageUrl !== undefined ? qrImageUrl : null,
+        receiverName !== undefined ? receiverName : null,
+        receiverNumber !== undefined ? receiverNumber : null,
+        instructions !== undefined ? instructions : null,
+        active !== undefined ? (active ? 1 : 0) : null,
+        sortOrder !== undefined ? Number(sortOrder) : null,
+        now,
+        id
+      );
+      logAudit(currentUser.id, 'PAYMENT_GATEWAY_UPDATE', 'payment_gateway', id, 'Updated payment gateway ' + id);
+      return json({ message: 'Payment gateway updated successfully', id });
+    }
+
+    if (pathname.startsWith('/api/admin/payment-gateways/') && req.method === 'DELETE') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const id = pathname.split('/')[4];
+      db.prepare('DELETE FROM payment_gateways WHERE id = ?').run(id);
+      logAudit(currentUser.id, 'PAYMENT_GATEWAY_DELETE', 'payment_gateway', id, 'Deleted payment gateway ' + id);
+      return json({ message: 'Payment gateway deleted successfully', id });
+    }
+
+    // -------------------------------------------------------------
+    // HOMEPAGE BANNERS & PROMOTIONS MANAGEMENT ("Top Things")
+    // -------------------------------------------------------------
+    if (pathname === '/api/banners' && req.method === 'GET') {
+      const banners = db.prepare('SELECT * FROM homepage_banners WHERE active = 1 ORDER BY sort_order ASC, created_at ASC').all();
+      return json(banners);
+    }
+
+    if (pathname === '/api/admin/banners' && req.method === 'GET') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const banners = db.prepare('SELECT * FROM homepage_banners ORDER BY sort_order ASC, created_at ASC').all();
+      return json(banners);
+    }
+
+    if (pathname === '/api/admin/banners' && req.method === 'POST') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const b = body || {};
+      const title = b.title;
+      const imageUrl = b.imageUrl || b.image_url;
+      const linkUrl = b.linkUrl || b.link_url;
+      const badgeText = b.badgeText !== undefined ? b.badgeText : b.badge_text;
+      const active = b.active !== undefined ? b.active : 1;
+      const sortOrder = b.sortOrder !== undefined ? b.sortOrder : (b.sort_order !== undefined ? b.sort_order : 0);
+
+      if (!title || !imageUrl) {
+        return error('Banner title and image URL are required');
+      }
+      const id = 'ban_' + crypto.randomUUID().slice(0, 8);
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO homepage_banners (id, title, image_url, link_url, badge_text, active, sort_order, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        title,
+        imageUrl,
+        linkUrl || '#',
+        badgeText || null,
+        active ? 1 : 0,
+        Number(sortOrder) || 0,
+        now
+      );
+      logAudit(currentUser.id, 'BANNER_CREATE', 'homepage_banner', id, 'Created homepage banner ' + title);
+      return json({ message: 'Homepage banner created successfully', id }, 201);
+    }
+
+    if (pathname.startsWith('/api/admin/banners/') && req.method === 'PUT') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const id = pathname.split('/')[4];
+      const existing = db.prepare('SELECT * FROM homepage_banners WHERE id = ?').get(id);
+      if (!existing) return error('Banner not found', 404);
+
+      const b = body || {};
+      const title = b.title;
+      const imageUrl = b.imageUrl !== undefined ? b.imageUrl : b.image_url;
+      const linkUrl = b.linkUrl !== undefined ? b.linkUrl : b.link_url;
+      const badgeText = b.badgeText !== undefined ? b.badgeText : b.badge_text;
+      const active = b.active !== undefined ? b.active : undefined;
+      const sortOrder = b.sortOrder !== undefined ? b.sortOrder : b.sort_order;
+
+      db.prepare(`
+        UPDATE homepage_banners
+        SET title = COALESCE(?, title),
+            image_url = COALESCE(?, image_url),
+            link_url = COALESCE(?, link_url),
+            badge_text = COALESCE(?, badge_text),
+            active = COALESCE(?, active),
+            sort_order = COALESCE(?, sort_order)
+        WHERE id = ?
+      `).run(
+        title !== undefined ? title : null,
+        imageUrl !== undefined ? imageUrl : null,
+        linkUrl !== undefined ? linkUrl : null,
+        badgeText !== undefined ? badgeText : null,
+        active !== undefined ? (active ? 1 : 0) : null,
+        sortOrder !== undefined ? Number(sortOrder) : null,
+        id
+      );
+      logAudit(currentUser.id, 'BANNER_UPDATE', 'homepage_banner', id, 'Updated homepage banner ' + id);
+      return json({ message: 'Homepage banner updated successfully', id });
+    }
+
+    if (pathname.startsWith('/api/admin/banners/') && req.method === 'DELETE') {
+      if (!currentUser || currentUser.role === 'player') {
+        return error('Unauthorized', 403);
+      }
+      const id = pathname.split('/')[4];
+      db.prepare('DELETE FROM homepage_banners WHERE id = ?').run(id);
+      logAudit(currentUser.id, 'BANNER_DELETE', 'homepage_banner', id, 'Deleted homepage banner ' + id);
+      return json({ message: 'Homepage banner deleted successfully', id });
     }
 
     if (pathname === '/api/admin/tournaments' && req.method === 'POST') {

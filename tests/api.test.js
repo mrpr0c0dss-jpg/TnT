@@ -34,7 +34,55 @@ async function runMockRequest(method, pathname, headers = {}, body = null, query
   return { status: statusCode, headers: resHeaders, data: responseData };
 }
 
+function setupTestFixtures() {
+  const now = new Date().toISOString();
+  const testUsers = [
+    { id: 'usr_player1', name: 'Phoenix_Ace', email: 'phoenix@gamer.io', role: 'player', balance: 150.0 },
+    { id: 'usr_player2', name: 'ViperStrike', email: 'viper@gamer.io', role: 'player', balance: 45.0 },
+    { id: 'usr_player3', name: 'ShadowNinja', email: 'ninja@gamer.io', role: 'player', balance: 8.5 },
+    { id: 'usr_tmgr', name: 'Kage_Director', email: 'tournaments@platform.io', role: 'tournament_manager', balance: 500.0 },
+    { id: 'usr_finance', name: 'Audit_Vault', email: 'finance@platform.io', role: 'finance_reviewer', balance: 5000.0 }
+  ];
+
+  for (const u of testUsers) {
+    db.prepare(`
+      INSERT OR REPLACE INTO users (id, display_name, email, phone, role, status, avatar, created_at)
+      VALUES (?, ?, ?, '+977-9800000000', ?, 'active', ?, ?)
+    `).run(u.id, u.name, u.email, u.role, `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`, now);
+
+    db.prepare(`
+      INSERT OR REPLACE INTO wallets (user_id, currency, available_balance, locked_balance, updated_at)
+      VALUES (?, 'USD', ?, 0.0, ?)
+    `).run(u.id, u.balance, now);
+
+    db.prepare(`
+      INSERT OR REPLACE INTO wallet_ledger (id, user_id, type, amount, direction, reference_type, reference_id, idempotency_key, note, created_at)
+      VALUES (?, ?, 'DEPOSIT', ?, 'CREDIT', 'INITIAL_GRANT', 'genesis', ?, 'Initial platform balance', ?)
+    `).run('led_test_' + u.id, u.id, u.balance, 'idemp_test_init_' + u.id, now);
+  }
+
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO tournament_registrations (id, tournament_id, user_id, team_id, status, entry_payment_ledger_id, receipt_number, registered_at)
+      VALUES ('reg_usr1_mlbb_test', 'tour_live_showdown', 'usr_player1', null, 'CONFIRMED', 'led_test', 'RCPT-MLBB-TEST', ?)
+    `).run(now);
+  } catch (e) {}
+
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO support_chat_messages (id, thread_id, sender_id, sender_role, sender_name, recipient_id, message, attachment_url, is_read, created_at)
+      VALUES ('msg_test_prior', 'thread_usr_player1', 'usr_player1', 'player', 'Phoenix_Ace', 'admin', 'Prior greeting', null, 1, ?)
+    `).run(now);
+  } catch (e) {}
+}
+
+function teardownTestFixtures() {
+  const { cleanupDemoAccounts } = require('../server/db');
+  cleanupDemoAccounts();
+}
+
 async function runTests() {
+  setupTestFixtures();
   console.log('--- STARTING SECTION 12 SPECIFICATION TEST PLAN ---');
   let passed = 0;
   let failed = 0;
@@ -451,9 +499,116 @@ async function runTests() {
     assert.strictEqual(lastMsg.message, 'Hello Aarav! Your Free Fire diamond package was successfully delivered to your UID.');
   });
 
+  await test('Payment Gateways & QR Codes: Admin creates, updates, and deletes payment QR', async () => {
+    // 1. Public retrieval of active gateways
+    const pubRes = await runMockRequest('GET', '/api/payment-gateways');
+    assert.strictEqual(pubRes.status, 200);
+    assert.ok(Array.isArray(pubRes.data));
+    assert.ok(pubRes.data.length >= 3); // Seeded eSewa, Khalti, Fonepay
+
+    // 2. Admin creates a new custom QR gateway
+    const createRes = await runMockRequest('POST', '/api/admin/payment-gateways', { 'x-auth-token': 'usr_admin' }, {
+      name: 'Binance USDT Pay (TRC20)',
+      provider: 'usdt',
+      qrImageUrl: '/assets/payment/usdt_qr.png',
+      receiverName: 'TnT Crypto Vault',
+      receiverNumber: 'TFxyz123456789CryptoAddress',
+      instructions: 'Transfer USDT TRC20 and paste TXID in remarks',
+      active: 1,
+      sortOrder: 5
+    });
+    assert.strictEqual(createRes.status, 201);
+    const createdId = createRes.data.id;
+    assert.ok(createdId);
+
+    // 3. Admin updates gateway
+    const updateRes = await runMockRequest('PUT', `/api/admin/payment-gateways/${createdId}`, { 'x-auth-token': 'usr_admin' }, {
+      active: 0,
+      instructions: 'Updated instructions for crypto deposits'
+    });
+    assert.strictEqual(updateRes.status, 200);
+
+    // 4. Verify deactivated gateway does not show in public list
+    const pubAfterRes = await runMockRequest('GET', '/api/payment-gateways');
+    const foundInactive = pubAfterRes.data.find(g => g.id === createdId);
+    assert.strictEqual(foundInactive, undefined, 'Deactivated gateway must not appear in public active list');
+
+    // 5. Admin deletes the test gateway
+    const delRes = await runMockRequest('DELETE', `/api/admin/payment-gateways/${createdId}`, { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(delRes.status, 200);
+  });
+
+  await test('Homepage Hero Banners ("Top Things"): Admin creates, updates, and deletes billboard banners', async () => {
+    // 1. Public retrieval of active banners
+    const pubRes = await runMockRequest('GET', '/api/banners');
+    assert.strictEqual(pubRes.status, 200);
+    assert.ok(Array.isArray(pubRes.data));
+    assert.ok(pubRes.data.length >= 1);
+
+    // 2. Admin creates a new promo billboard banner
+    const createRes = await runMockRequest('POST', '/api/admin/banners', { 'x-auth-token': 'usr_admin' }, {
+      title: 'Free Fire World Series 2026 Registration Open',
+      imageUrl: '/assets/banners/ff_world_series.webp',
+      linkUrl: '#tournaments',
+      badgeText: '🔥 $10,000 PRIZE',
+      active: 1,
+      sortOrder: 1
+    });
+    assert.strictEqual(createRes.status, 201);
+    const bannerId = createRes.data.id;
+    assert.ok(bannerId);
+
+    // 3. Admin updates banner status
+    const updateRes = await runMockRequest('PUT', `/api/admin/banners/${bannerId}`, { 'x-auth-token': 'usr_admin' }, {
+      badgeText: '🏆 CHAMPIONSHIP LIVE',
+      active: 0
+    });
+    assert.strictEqual(updateRes.status, 200);
+
+    // 4. Admin deletes test banner
+    const delRes = await runMockRequest('DELETE', `/api/admin/banners/${bannerId}`, { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(delRes.status, 200);
+  });
+
+  await test('Game & Package Management: Safe package and game deletion', async () => {
+    // 1. Create temporary test game
+    const gameRes = await runMockRequest('POST', '/api/admin/games', { 'x-auth-token': 'usr_admin' }, {
+      name: 'Temp Deletion Game',
+      category: 'Shooter',
+      icon: '🎯',
+      banner: '/assets/games/battleground.webp',
+      deliveryMethod: 'auto_api',
+      requiredPlayerFields: ['Player ID']
+    });
+    assert.strictEqual(gameRes.status, 201);
+    const gameId = gameRes.data.id;
+
+    // 2. Add package to test game
+    const pkgRes = await runMockRequest('POST', '/api/admin/topup-packages', { 'x-auth-token': 'usr_admin' }, {
+      gameId,
+      name: '500 Coins',
+      itemQuantity: '500 Coins',
+      price: 4.99,
+      badge: 'SPECIAL'
+    });
+    assert.strictEqual(pkgRes.status, 201);
+    const pkgId = pkgRes.data.id;
+
+    // 3. Delete package
+    const delPkgRes = await runMockRequest('DELETE', `/api/admin/topup-packages/${pkgId}`, { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(delPkgRes.status, 200);
+
+    // 4. Delete game
+    const delGameRes = await runMockRequest('DELETE', `/api/admin/games/${gameId}?force=true`, { 'x-auth-token': 'usr_admin' });
+    assert.strictEqual(delGameRes.status, 200);
+  });
+
   console.log(`\n========================================`);
   console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log(`========================================\n`);
+
+  // Teardown test fixtures so database remains completely clean
+  teardownTestFixtures();
 
   if (failed > 0) {
     process.exit(1);

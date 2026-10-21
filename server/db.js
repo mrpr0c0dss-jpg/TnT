@@ -269,6 +269,31 @@ function initSchema() {
       is_read INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS payment_gateways (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      qr_image_url TEXT NOT NULL,
+      receiver_name TEXT NOT NULL,
+      receiver_number TEXT NOT NULL,
+      instructions TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS homepage_banners (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      image_url TEXT NOT NULL,
+      link_url TEXT,
+      badge_text TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
   `);
 
   try {
@@ -378,17 +403,10 @@ function seedDatabase() {
   const now = new Date();
   const iso = (offsetMinutes = 0) => new Date(now.getTime() + offsetMinutes * 60000).toISOString();
 
-  // 1. Seed Users (Roles: super_admin, tournament_manager, topup_operator, finance_reviewer, support, player)
+  // 1. Seed Real Super Admin Accounts Only (No Demo / Mock Players)
   const users = [
-    { id: 'usr_player1', name: 'Phoenix_Ace', email: 'phoenix@gamer.io', phone: '+977-9801234567', role: 'player', status: 'active', balance: 150.0 },
-    { id: 'usr_player2', name: 'ViperStrike', email: 'viper@gamer.io', phone: '+977-9812345678', role: 'player', status: 'active', balance: 45.0 },
-    { id: 'usr_player3', name: 'ShadowNinja', email: 'ninja@gamer.io', phone: '+977-9823456789', role: 'player', status: 'active', balance: 8.5 },
     { id: 'usr_admin', name: 'Aegis_Root', email: 'admin@platform.io', phone: '+1-555-0100', role: 'super_admin', status: 'active', balance: 1000.0 },
-    { id: 'usr_mrpr0', name: 'MrPr0C0dss', email: 'mrpr0c0dss@gmail.com', phone: '+977-9800000000', role: 'super_admin', status: 'active', balance: 2500.0 },
-    { id: 'usr_tmgr', name: 'Kage_Director', email: 'tournaments@platform.io', phone: '+1-555-0101', role: 'tournament_manager', status: 'active', balance: 500.0 },
-    { id: 'usr_operator', name: 'Nexus_Ops', email: 'ops@platform.io', phone: '+1-555-0102', role: 'topup_operator', status: 'active', balance: 250.0 },
-    { id: 'usr_finance', name: 'Audit_Vault', email: 'finance@platform.io', phone: '+1-555-0103', role: 'finance_reviewer', status: 'active', balance: 5000.0 },
-    { id: 'usr_support', name: 'Sentinel_Care', email: 'support@platform.io', phone: '+1-555-0104', role: 'support', status: 'active', balance: 100.0 },
+    { id: 'usr_mrpr0', name: 'MrPr0C0dss', email: 'mrpr0c0dss@gmail.com', phone: '+977-9800000000', role: 'super_admin', status: 'active', balance: 2500.0 }
   ];
 
   const insertUser = db.prepare(`
@@ -727,136 +745,7 @@ function seedDatabase() {
     iso(-1500)
   );
 
-  // 5. Seed sample registrations for usr_player1 in tour_ff_pro and tour_live_showdown
-  const insertReg = db.prepare(`
-    INSERT INTO tournament_registrations (id, tournament_id, user_id, team_id, status, entry_payment_ledger_id, receipt_number, registered_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  insertReg.run(
-    'reg_usr1_ff',
-    'tour_ff_pro',
-    'usr_player1',
-    null,
-    'CONFIRMED',
-    'led_entry_usr1_ff',
-    'RCPT-FF-' + Date.now().toString(36).toUpperCase(),
-    iso(-60)
-  );
-
-  insertReg.run(
-    'reg_usr1_mlbb',
-    'tour_live_showdown',
-    'usr_player1',
-    null,
-    'CONFIRMED',
-    'led_entry_usr1_mlbb',
-    'RCPT-ML-' + Date.now().toString(36).toUpperCase(),
-    iso(-100)
-  );
-
-  insertReg.run(
-    'reg_usr2_ff',
-    'tour_ff_pro',
-    'usr_player2',
-    null,
-    'CONFIRMED',
-    'led_entry_usr2_ff',
-    'RCPT-FF2-' + Date.now().toString(36).toUpperCase(),
-    iso(-50)
-  );
-
-  // 6. Seed sample match results for completed tournament
-  const insertMatchResult = db.prepare(`
-    INSERT INTO match_results (id, match_id, user_id, team_id, placement, kills, points, evidence_reference, submitted_by, approved_by, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  insertMatchResult.run(
-    'res_1',
-    'mat_val_done',
-    'usr_player1',
-    null,
-    1,
-    14,
-    26.0,
-    'https://img.gaming.proof/val_p1.png',
-    'usr_operator',
-    'usr_tmgr',
-    'APPROVED',
-    iso(-1400)
-  );
-  insertMatchResult.run(
-    'res_2',
-    'mat_val_done',
-    'usr_player2',
-    null,
-    2,
-    9,
-    18.0,
-    'https://img.gaming.proof/val_p2.png',
-    'usr_operator',
-    'usr_tmgr',
-    'APPROVED',
-    iso(-1400)
-  );
-
-  // 7. Seed sample prize payout for usr_player1
-  const insertPayout = db.prepare(`
-    INSERT INTO prize_payouts (id, tournament_id, user_id, amount, status, provider_reference, approved_by, dual_approved_by, paid_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  insertPayout.run(
-    'pay_val_1st',
-    'tour_completed_val',
-    'usr_player1',
-    180.0,
-    'PAID',
-    'WAL-LED-PRIZE-VAL',
-    'usr_tmgr',
-    'usr_finance',
-    iso(-1380),
-    iso(-1390)
-  );
-
-  // 8. Seed sample top-up orders
-  const insertOrder = db.prepare(`
-    INSERT INTO topup_orders (id, user_id, game_id, package_id, player_details, amount, fee, payment_method, status, idempotency_key, delivery_attempts, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  insertOrder.run(
-    'ord_sample_dlv',
-    'usr_player1',
-    'game_ff',
-    'pkg_ff_520',
-    JSON.stringify({ player_id: '192837465' }),
-    4.89,
-    0.0,
-    'esewa',
-    'DELIVERED',
-    'idemp_sample_dlv',
-    1,
-    iso(-300),
-    iso(-298)
-  );
-
-  insertOrder.run(
-    'ord_sample_proc',
-    'usr_player2',
-    'game_pubg',
-    'pkg_pubg_300',
-    JSON.stringify({ player_id: '518392019', server_id: 'ViperKing' }),
-    4.89,
-    0.0,
-    'khalti',
-    'PROCESSING',
-    'idemp_sample_proc',
-    0,
-    iso(-15),
-    iso(-14)
-  );
-
-  // 9. Initial Audit Log
+  // 5. Initial Audit Log
   const insertAudit = db.prepare(`
     INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, reason, metadata, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -1165,30 +1054,151 @@ function seedRobloxIfEmpty() {
   }
 }
 
-function ensureSupportChatSeeded() {
+function seedPaymentGatewaysIfEmpty() {
   try {
-    const existing = db.prepare('SELECT COUNT(*) as count FROM support_chat_messages').get();
-    if (existing && existing.count > 0) return;
+    const count = db.prepare('SELECT COUNT(*) as count FROM payment_gateways').get().count;
+    if (count > 0) return;
 
-    const insert = db.prepare(`
-      INSERT INTO support_chat_messages (id, thread_id, sender_id, sender_role, sender_name, recipient_id, message, attachment_url, is_read, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const now = new Date().toISOString();
+    const defaultGateways = [
+      {
+        id: 'gw_esewa',
+        name: 'eSewa QR & Mobile Wallet',
+        provider: 'esewa',
+        qr_image_url: '/assets/payment/esewa_qr.svg',
+        receiver_name: 'TnT Gaming Store Official',
+        receiver_number: '9801234567',
+        instructions: 'Scan using your eSewa App. Ensure you enter your Order/Deposit Reference in the Remarks field.',
+        active: 1,
+        sort_order: 1
+      },
+      {
+        id: 'gw_khalti',
+        name: 'Khalti Digital Wallet',
+        provider: 'khalti',
+        qr_image_url: '/assets/payment/khalti_qr.svg',
+        receiver_name: 'TnT Gaming Store Official',
+        receiver_number: '9801234567',
+        instructions: 'Scan via Khalti App. Copy your Deposit Reference code into Remarks for instant verification.',
+        active: 1,
+        sort_order: 2
+      },
+      {
+        id: 'gw_fonepay',
+        name: 'Fonepay / Mobile Banking QR',
+        provider: 'fonepay',
+        qr_image_url: '/assets/payment/fonepay_qr.svg',
+        receiver_name: 'TnT Gaming Store Official',
+        receiver_number: '9801234567',
+        instructions: 'Open your mobile banking app (Global, Nabil, NIC Asia, etc.), tap Scan QR, and pay to Fonepay Merchant.',
+        active: 1,
+        sort_order: 3
+      }
+    ];
+
+    const insertGw = db.prepare(`
+      INSERT INTO payment_gateways (id, name, provider, qr_image_url, receiver_name, receiver_number, instructions, active, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const now = Date.now();
-    const formatTime = (offsetMs) => new Date(now - offsetMs).toISOString();
+    for (const gw of defaultGateways) {
+      insertGw.run(gw.id, gw.name, gw.provider, gw.qr_image_url, gw.receiver_name, gw.receiver_number, gw.instructions, gw.active, gw.sort_order, now, now);
+    }
+  } catch (err) {
+    console.warn('seedPaymentGateways warning:', err.message);
+  }
+}
 
-    // Thread 1: usr_player1 (Aarav Sharma)
-    insert.run('msg_seed_1', 'thread_usr_player1', 'usr_player1', 'player', 'Aarav Sharma', 'admin', 'Hi! I just sent $25 via eSewa QR for wallet deposit. Ref #DEP-772911. Can you please check?', null, 1, formatTime(1800000));
-    insert.run('msg_seed_2', 'thread_usr_player1', 'usr_admin', 'admin', 'Aegis Admin', 'usr_player1', 'Hello Aarav! Checking your payment receipt right now. One moment please.', null, 1, formatTime(1500000));
-    insert.run('msg_seed_3', 'thread_usr_player1', 'usr_player1', 'player', 'Aarav Sharma', 'admin', 'Thank you! Also want to make sure I am confirmed in the Free Fire tournament squad.', null, 0, formatTime(300000));
+function seedHomepageBannersIfEmpty() {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as count FROM homepage_banners').get().count;
+    if (count > 0) return;
 
-    // Thread 2: usr_player2 (Priya Thapa)
-    insert.run('msg_seed_4', 'thread_usr_player2', 'usr_player2', 'player', 'Priya Thapa', 'admin', 'Hello support, where can I see the custom room password for tonight\'s MLBB match?', null, 1, formatTime(3600000));
-    insert.run('msg_seed_5', 'thread_usr_player2', 'usr_admin', 'admin', 'Aegis Admin', 'usr_player2', 'Room IDs & passwords automatically unlock 15 minutes before match start in your "My Matches" tab!', null, 1, formatTime(3300000));
-    insert.run('msg_seed_6', 'thread_usr_player2', 'usr_player2', 'player', 'Priya Thapa', 'admin', 'Got it, thank you for quick help! 🔥', null, 0, formatTime(120000));
-  } catch (e) {
-    console.warn('Chat seed warning:', e.message);
+    const now = new Date().toISOString();
+    const defaultBanners = [
+      {
+        id: 'ban_1',
+        title: 'TNT Esports Tournament Arena',
+        image_url: '/assets/banner/tnt_esports_arena.webp',
+        link_url: '#tournaments',
+        badge_text: 'Live Esports',
+        active: 1,
+        sort_order: 1
+      },
+      {
+        id: 'ban_2',
+        title: 'Neon Loot Battle Royale',
+        image_url: '/assets/banner/neon_loot_battle_royale.webp',
+        link_url: '#topups',
+        badge_text: 'Instant Diamonds',
+        active: 1,
+        sort_order: 2
+      },
+      {
+        id: 'ban_3',
+        title: 'Cricket Stadium Lights',
+        image_url: '/assets/banner/cricket_stadium_lights.webp',
+        link_url: '#arcade',
+        badge_text: 'Arcade Games',
+        active: 1,
+        sort_order: 3
+      },
+      {
+        id: 'ban_4',
+        title: 'Neon AI Workspace',
+        image_url: '/assets/banner/neon_ai_workspace.webp',
+        link_url: '#subscriptions',
+        badge_text: 'AI Tools',
+        active: 1,
+        sort_order: 4
+      }
+    ];
+
+    const insertBan = db.prepare(`
+      INSERT INTO homepage_banners (id, title, image_url, link_url, badge_text, active, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const b of defaultBanners) {
+      insertBan.run(b.id, b.title, b.image_url, b.link_url, b.badge_text, b.active, b.sort_order, now);
+    }
+  } catch (err) {
+    console.warn('seedHomepageBanners warning:', err.message);
+  }
+}
+
+function cleanupDemoAccounts() {
+  const demoIds = [
+    'usr_player1',
+    'usr_player2',
+    'usr_player3',
+    'usr_tmgr',
+    'usr_operator',
+    'usr_finance',
+    'usr_support',
+    'usr_g_googleuidt',
+    'usr_gm_a81b29fb'
+  ];
+
+  try {
+    for (const id of demoIds) {
+      try { db.prepare("UPDATE ai_license_keys SET assigned_to_user_id = NULL, assigned_order_id = NULL, status = 'AVAILABLE' WHERE assigned_to_user_id = ?").run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM team_members WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM teams WHERE captain_user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM wallet_ledger WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM tournament_registrations WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM match_results WHERE user_id = ? OR submitted_by = ? OR approved_by = ?').run(id, id, id); } catch (e) {}
+      try { db.prepare('DELETE FROM prize_payouts WHERE user_id = ? OR approved_by = ? OR dual_approved_by = ?').run(id, id, id); } catch (e) {}
+      try { db.prepare('DELETE FROM disputes WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM support_chat_messages WHERE sender_id = ? OR recipient_id = ?').run(id, id); } catch (e) {}
+      try { db.prepare('DELETE FROM payments WHERE order_id IN (SELECT id FROM topup_orders WHERE user_id = ?)').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM topup_orders WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM ai_subscriptions WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM wallets WHERE user_id = ?').run(id); } catch (e) {}
+      try { db.prepare('DELETE FROM users WHERE id = ?').run(id); } catch (e) {}
+    }
+  } catch (err) {
+    console.warn('cleanupDemoAccounts warning:', err.message);
   }
 }
 
@@ -1197,7 +1207,9 @@ seedDatabase();
 seedAiSubscriptionsIfEmpty();
 seedRobloxIfEmpty();
 ensureMasterAdmins();
-ensureSupportChatSeeded();
+seedPaymentGatewaysIfEmpty();
+seedHomepageBannersIfEmpty();
+cleanupDemoAccounts();
 
 module.exports = {
   db,
@@ -1205,5 +1217,7 @@ module.exports = {
   seedAiSubscriptionsIfEmpty,
   seedRobloxIfEmpty,
   ensureMasterAdmins,
-  ensureSupportChatSeeded
+  seedPaymentGatewaysIfEmpty,
+  seedHomepageBannersIfEmpty,
+  cleanupDemoAccounts
 };

@@ -1,6 +1,6 @@
 // API Client Layer
 const API = {
-  authToken: localStorage.getItem('topup_auth_token') || 'usr_player1',
+  authToken: localStorage.getItem('topup_auth_token') || '',
 
   setAuthToken(token) {
     this.authToken = token;
@@ -291,6 +291,52 @@ const API = {
     return this.request(`/api/admin/topup-packages/${id}`, { method: 'DELETE' });
   },
 
+  // Payment QR & Gateways
+  getPaymentGateways() {
+    return this.request('/api/payment-gateways');
+  },
+  getAdminPaymentGateways() {
+    return this.request('/api/admin/payment-gateways');
+  },
+  createAdminPaymentGateway(data) {
+    return this.request('/api/admin/payment-gateways', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+  updateAdminPaymentGateway(id, data) {
+    return this.request(`/api/admin/payment-gateways/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+  deleteAdminPaymentGateway(id) {
+    return this.request(`/api/admin/payment-gateways/${id}`, { method: 'DELETE' });
+  },
+
+  // Homepage Hero Banners & Promotions ("Top Things")
+  getBanners() {
+    return this.request('/api/banners');
+  },
+  getAdminBanners() {
+    return this.request('/api/admin/banners');
+  },
+  createAdminBanner(data) {
+    return this.request('/api/admin/banners', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+  updateAdminBanner(id, data) {
+    return this.request(`/api/admin/banners/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+  deleteAdminBanner(id) {
+    return this.request(`/api/admin/banners/${id}`, { method: 'DELETE' });
+  },
+
   // Live Support Chat
   getChatUnreadCount() {
     return this.request('/api/chat/unread-count');
@@ -305,6 +351,31 @@ const API = {
     return this.request('/api/chat/send', {
       method: 'POST',
       body: JSON.stringify(data)
+    });
+  },
+
+  // Media & File Upload Helper
+  async uploadFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const res = await this.request('/api/upload', {
+            method: 'POST',
+            body: JSON.stringify({
+              data: e.target.result,
+              filename: file.name,
+              contentType: file.type
+            })
+          });
+          resolve(res.url);
+        } catch (err) {
+          // If upload fails, fallback to data url
+          resolve(e.target.result);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   }
 };
