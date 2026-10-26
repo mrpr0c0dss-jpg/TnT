@@ -665,7 +665,7 @@ class ApiService {
   // ------------------------------------------------------------------
   Future<List<GameModel>> getGames() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/topups/games'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/topups/games'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((g) => GameModel.fromJson(g as Map<String, dynamic>)).toList();
@@ -676,7 +676,7 @@ class ApiService {
 
   Future<List<TopUpPackageModel>> getPackages(String gameId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/topups/games/$gameId/packages'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/topups/games/$gameId/packages'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((p) => TopUpPackageModel.fromJson(p as Map<String, dynamic>)).toList();
@@ -911,7 +911,7 @@ class ApiService {
       if (status != null && status != 'All') query += 'status=${Uri.encodeComponent(status)}&';
       if (gameId != null && gameId != 'All') query += 'game_id=${Uri.encodeComponent(gameId)}&';
 
-      final res = await http.get(Uri.parse('$baseUrl/api/tournaments?$query'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/tournaments?$query'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((t) => TournamentModel.fromJson(t as Map<String, dynamic>)).toList();
@@ -1071,7 +1071,7 @@ class ApiService {
   // ------------------------------------------------------------------
   Future<List<AiToolModel>> getAiTools() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/ai/tools'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/ai/tools'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((t) => AiToolModel.fromJson(t as Map<String, dynamic>)).toList();
@@ -1082,7 +1082,7 @@ class ApiService {
 
   Future<List<AiSubscriptionModel>> getMyAiSubscriptions() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/ai/my-subscriptions'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/ai/my-subscriptions'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((s) => AiSubscriptionModel.fromJson(s as Map<String, dynamic>)).toList();
@@ -1117,7 +1117,7 @@ class ApiService {
   // ------------------------------------------------------------------
   Future<Map<String, dynamic>> getPlatformMetrics() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/platform/metrics'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/platform/metrics'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -1134,7 +1134,7 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getLeaderboard() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/leaderboard'), headers: _headers);
+      final res = await http.get(Uri.parse('$baseUrl/api/leaderboard'), headers: _headers).timeout(const Duration(seconds: 2));
       if (res.statusCode == 200) {
         return List<Map<String, dynamic>>.from(jsonDecode(res.body));
       }

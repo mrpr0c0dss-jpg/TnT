@@ -13,11 +13,12 @@ import 'screens/profile_screen.dart';
 import 'screens/admin_panel_shell.dart';
 import 'screens/arcade_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final appState = AppState();
-  await appState.init();
   runApp(TnTGamingApp(appState: appState));
+  // Initialize state asynchronously so Flutter renders the UI immediately
+  appState.init();
 }
 
 class TnTGamingApp extends StatelessWidget {

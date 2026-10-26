@@ -1202,6 +1202,354 @@ function cleanupDemoAccounts() {
   }
 }
 
+function seedHomeScreenData() {
+  try {
+    const now = new Date();
+    const iso = (offsetMinutes = 0) => new Date(now.getTime() + offsetMinutes * 60000).toISOString();
+
+    // 1. Clean up junk test fixtures
+    try {
+      db.prepare("DELETE FROM match_results WHERE match_id IN (SELECT id FROM matches WHERE tournament_id IN (SELECT id FROM tournaments WHERE title LIKE '%Test%'))").run();
+      db.prepare("DELETE FROM tournament_registrations WHERE tournament_id IN (SELECT id FROM tournaments WHERE title LIKE '%Test%')").run();
+      db.prepare("DELETE FROM matches WHERE tournament_id IN (SELECT id FROM tournaments WHERE title LIKE '%Test%')").run();
+      db.prepare("DELETE FROM tournaments WHERE title LIKE '%Test%'").run();
+      db.prepare("DELETE FROM tournaments WHERE id = 'tour_cricket_ipl' OR (title LIKE '%Cricket%' AND starts_at < '2026-10-24')").run();
+      db.prepare("DELETE FROM topup_packages WHERE game_id IN (SELECT id FROM topup_games WHERE id LIKE '%temp%' OR name LIKE '%temp%')").run();
+      db.prepare("DELETE FROM topup_games WHERE id LIKE '%temp%' OR name LIKE '%temp%'").run();
+    } catch (_) {}
+
+    // 2. Seed Pro Players for Leaderboard & Community Display
+    const proPlayers = [
+      { id: 'usr_pro_phoenix', name: 'Phoenix_Ace', email: 'phoenix@tntarena.gg', phone: '+977-9811000001', role: 'player', balance: 420.0 },
+      { id: 'usr_pro_viper', name: 'ViperStrike', email: 'viper@tntarena.gg', phone: '+977-9811000002', role: 'player', balance: 310.0 },
+      { id: 'usr_pro_shadow', name: 'ShadowNinja', email: 'shadow@tntarena.gg', phone: '+977-9811000003', role: 'player', balance: 250.0 },
+      { id: 'usr_pro_ghost', name: 'GhostRider', email: 'ghost@tntarena.gg', phone: '+977-9811000004', role: 'player', balance: 180.0 },
+      { id: 'usr_pro_cybersam', name: 'CyberSamurai', email: 'cyber@tntarena.gg', phone: '+977-9811000005', role: 'player', balance: 140.0 },
+      { id: 'usr_pro_valkyrie', name: 'NeonValkyrie', email: 'valkyrie@tntarena.gg', phone: '+977-9811000006', role: 'player', balance: 110.0 },
+      { id: 'usr_pro_krypton', name: 'KryptonKing', email: 'krypton@tntarena.gg', phone: '+977-9811000007', role: 'player', balance: 85.0 },
+      { id: 'usr_pro_mystic', name: 'MysticQueen', email: 'mystic@tntarena.gg', phone: '+977-9811000008', role: 'player', balance: 60.0 },
+    ];
+
+    const insertUser = db.prepare(`
+      INSERT OR REPLACE INTO users (id, display_name, email, phone, role, status, avatar, created_at)
+      VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+    `);
+    const insertWallet = db.prepare(`
+      INSERT OR REPLACE INTO wallets (user_id, currency, available_balance, locked_balance, updated_at)
+      VALUES (?, 'USD', ?, 0.0, ?)
+    `);
+
+    for (const p of proPlayers) {
+      insertUser.run(p.id, p.name, p.email, p.phone, p.role, `https://api.dicebear.com/7.x/bottts/svg?seed=${p.id}`, iso(-10080));
+      insertWallet.run(p.id, p.balance, iso(-10));
+    }
+
+    // 3. Ensure Fresh, Active & Live Tournaments for Home Screen Showcase
+    const defaultScoring = JSON.stringify({
+      placementPoints: { "1": 12, "2": 9, "3": 8, "4": 7, "5": 6, "6": 5, "7": 4, "8": 3, "9": 2, "10": 1 },
+      killPoints: 1,
+      disqualificationPenalty: -50
+    });
+
+    const tournaments = [
+      {
+        id: 'tour_ff_pro',
+        title: 'Free Fire: Apex Champions Cup S4',
+        game_id: 'game_ff',
+        mode: 'Squad',
+        region: 'South Asia',
+        banner: '/assets/banner/tnt_esports_arena.webp',
+        description: 'The definitive squad showdown. 48 top squads fight across Bermuda and Kalahari. Official prize distribution with instant wallet payout.',
+        entry_fee: 10.0,
+        prize_pool: 400.0,
+        prize_split: JSON.stringify([
+          { place: 1, percent: 50, amount: 200 },
+          { place: 2, percent: 30, amount: 120 },
+          { place: 3, percent: 20, amount: 80 }
+        ]),
+        max_slots: 48,
+        starts_at: iso(180), // in 3 hours
+        registration_closes_at: iso(120),
+        check_in_opens_at: iso(150),
+        room_release_at: iso(165),
+        status: 'Registration Open',
+        rules: '1. Emulators strictly prohibited. 2. Mobile phones only. 3. Recording proof required for top 3 placements.'
+      },
+      {
+        id: 'tour_pubg_solo',
+        title: 'PUBG Mobile: Erangel Solo Standoff',
+        game_id: 'game_pubg',
+        mode: 'Solo',
+        region: 'Asia Pacific',
+        banner: '/assets/banner/neon_loot_battle_royale.webp',
+        description: 'Single warrior battle. Survival and high kill count dominate the scoring ladder. Free entry for all verified players!',
+        entry_fee: 0.0,
+        prize_pool: 150.0,
+        prize_split: JSON.stringify([
+          { place: 1, percent: 60, amount: 90 },
+          { place: 2, percent: 25, amount: 37.5 },
+          { place: 3, percent: 15, amount: 22.5 }
+        ]),
+        max_slots: 64,
+        starts_at: iso(360), // in 6 hours
+        registration_closes_at: iso(300),
+        check_in_opens_at: iso(330),
+        room_release_at: iso(345),
+        status: 'Registration Open',
+        rules: '1. Standard Erangel Classic. 2. Flare guns permitted. 3. Teaming up results in immediate disqualification.'
+      },
+      {
+        id: 'tour_live_showdown',
+        title: 'MLBB: Mystic Invitational [LIVE NOW]',
+        game_id: 'game_mlbb',
+        mode: 'Solo 1v1',
+        region: 'Southeast Asia',
+        banner: '/assets/games/mobilelegends.webp',
+        description: 'Mid lane 1v1 mirror tournament. Currently LIVE! Room details available for registered contestants.',
+        entry_fee: 5.0,
+        prize_pool: 180.0,
+        prize_split: JSON.stringify([
+          { place: 1, percent: 65, amount: 117 },
+          { place: 2, percent: 35, amount: 63 }
+        ]),
+        max_slots: 32,
+        starts_at: iso(-15), // started 15 mins ago
+        registration_closes_at: iso(-45),
+        check_in_opens_at: iso(-30),
+        room_release_at: iso(-25),
+        status: 'Live',
+        rules: '1. First blood or first turret win. 2. Mirror pick ban. 3. No jungle creep farming.'
+      },
+      {
+        id: 'tour_roblox_bedwars',
+        title: 'Roblox: BedWars Summer Championship',
+        game_id: 'game_roblox',
+        mode: 'Squads (4v4)',
+        region: 'Global / South Asia',
+        banner: '/assets/games/roblox.webp',
+        description: 'Defend your bed and conquer island bases in the official TNT BedWars showdown. Private VIP server link released 15 mins before match.',
+        entry_fee: 5.0,
+        prize_pool: 250.0,
+        prize_split: JSON.stringify([
+          { place: 1, percent: 60, amount: 150 },
+          { place: 2, percent: 25, amount: 62.5 },
+          { place: 3, percent: 15, amount: 37.5 }
+        ]),
+        max_slots: 32,
+        starts_at: iso(270), // in 4.5 hours
+        registration_closes_at: iso(240),
+        check_in_opens_at: iso(250),
+        room_release_at: iso(255),
+        status: 'Registration Open',
+        rules: '1. No autoclickers or third-party exploits permitted. 2. Official BedWars rules apply.'
+      },
+      {
+        id: 'tour_cricket_superover',
+        title: 'TNT Cricket Super Over Championship',
+        game_id: 'hexgl_3d_racer',
+        mode: 'Solo',
+        region: 'South Asia',
+        banner: '/assets/banner/cricket_stadium_lights.webp',
+        description: 'High-octane arcade cricket championship. Score maximum runs in 6 deliveries! Leaderboard winners take real cash prizes.',
+        entry_fee: 0.0,
+        prize_pool: 100.0,
+        prize_split: JSON.stringify([
+          { place: 1, percent: 50, amount: 50 },
+          { place: 2, percent: 30, amount: 30 },
+          { place: 3, percent: 20, amount: 20 }
+        ]),
+        max_slots: 50,
+        starts_at: iso(480), // in 8 hours
+        registration_closes_at: iso(420),
+        check_in_opens_at: iso(450),
+        room_release_at: iso(465),
+        status: 'Registration Open',
+        rules: '1. 1 Over match (6 balls). 2. Maximum boundaries count. 3. Fair play engine enforced.'
+      },
+      {
+        id: 'tour_completed_val',
+        title: 'Valorant: Spike Assault Season 2',
+        game_id: 'game_val',
+        mode: 'Solo',
+        region: 'North America',
+        banner: '/assets/banner/neon_loot_battle_royale.webp',
+        description: 'Completed tournament with official results approved and audited.',
+        entry_fee: 8.0,
+        prize_pool: 300.0,
+        prize_split: JSON.stringify([
+          { place: 1, percent: 60, amount: 180 },
+          { place: 2, percent: 30, amount: 90 },
+          { place: 3, percent: 10, amount: 30 }
+        ]),
+        max_slots: 32,
+        starts_at: iso(-1440),
+        registration_closes_at: iso(-1500),
+        check_in_opens_at: iso(-1470),
+        room_release_at: iso(-1450),
+        status: 'Completed',
+        rules: '1. Deathmatch 10-minute cap. 2. Standard weapon loadouts.'
+      }
+    ];
+
+    const insertTour = db.prepare(`
+      INSERT OR REPLACE INTO tournaments (
+        id, title, game_id, mode, region, banner, description, entry_fee, prize_pool,
+        prize_split, max_slots, starts_at, registration_closes_at, check_in_opens_at,
+        room_release_at, status, rules, scoring_config, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const t of tournaments) {
+      insertTour.run(
+        t.id, t.title, t.game_id, t.mode, t.region, t.banner, t.description,
+        t.entry_fee, t.prize_pool, t.prize_split, t.max_slots, t.starts_at,
+        t.registration_closes_at, t.check_in_opens_at, t.room_release_at,
+        t.status, t.rules, defaultScoring, iso(-720)
+      );
+    }
+
+    // 4. Seed Registrations for Real Registration Progress
+    const insertReg = db.prepare(`
+      INSERT OR IGNORE INTO tournament_registrations (
+        id, tournament_id, user_id, team_id, status, entry_payment_ledger_id, receipt_number, registered_at
+      ) VALUES (?, ?, ?, ?, 'CONFIRMED', ?, ?, ?)
+    `);
+
+    const fillCounts = [
+      { tourId: 'tour_ff_pro', count: 38 },
+      { tourId: 'tour_pubg_solo', count: 52 },
+      { tourId: 'tour_live_showdown', count: 32 },
+      { tourId: 'tour_roblox_bedwars', count: 24 },
+      { tourId: 'tour_cricket_superover', count: 35 },
+      { tourId: 'tour_completed_val', count: 32 },
+    ];
+
+    for (let i = 1; i <= 60; i++) {
+      const dummyId = `usr_sim_${i}`;
+      db.prepare(`
+        INSERT OR IGNORE INTO users (id, display_name, email, phone, role, status, avatar, created_at)
+        VALUES (?, ?, ?, '+977-9800000000', 'player', 'active', ?, ?)
+      `).run(dummyId, `Player_${i}`, `player${i}@sim.tnt`, `https://api.dicebear.com/7.x/bottts/svg?seed=${dummyId}`, iso(-2880));
+      db.prepare(`
+        INSERT OR IGNORE INTO wallets (user_id, currency, available_balance, locked_balance, updated_at)
+        VALUES (?, 'USD', 50.0, 0.0, ?)
+      `).run(dummyId, iso(-2880));
+    }
+
+    for (const item of fillCounts) {
+      for (let pIdx = 0; pIdx < Math.min(item.count, proPlayers.length); pIdx++) {
+        const p = proPlayers[pIdx];
+        insertReg.run(
+          `reg_${item.tourId}_${p.id}`,
+          item.tourId,
+          p.id,
+          null,
+          `led_reg_${item.tourId}_${p.id}`,
+          `RCPT-${item.tourId.slice(5, 8).toUpperCase()}-${p.id.slice(8, 12)}`,
+          iso(-120)
+        );
+      }
+      for (let sIdx = proPlayers.length; sIdx < item.count; sIdx++) {
+        const simId = `usr_sim_${sIdx - proPlayers.length + 1}`;
+        insertReg.run(
+          `reg_${item.tourId}_${simId}`,
+          item.tourId,
+          simId,
+          null,
+          `led_reg_${item.tourId}_${simId}`,
+          `RCPT-${item.tourId.slice(5, 8).toUpperCase()}-${sIdx + 100}`,
+          iso(-60)
+        );
+      }
+    }
+
+    // 5. Seed Matches & Match Results for Leaderboard Calculation
+    const insertMatch = db.prepare(`
+      INSERT OR REPLACE INTO matches (id, tournament_id, round_number, match_code, scheduled_at, status, room_id, room_password, room_secret_reference, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertMatch.run('mat_ff_r1', 'tour_ff_pro', 1, 'FF-R1-LOBBY-A', iso(180), 'SCHEDULED', 'ROOM-99214', 'ApexPass#77', 'sec_ff_99214', iso(-60));
+    insertMatch.run('mat_mlbb_live', 'tour_live_showdown', 1, 'ML-FINALS-01', iso(-15), 'LIVE', 'CUSTOM-ML-552', 'Mystic888', 'sec_mlbb_552', iso(-120));
+    insertMatch.run('mat_val_done_r1', 'tour_completed_val', 1, 'VAL-CHAMP-R1', iso(-1440), 'FINISHED', 'VAL-CUSTOM-01', 'GGPass123', 'sec_val_01', iso(-1500));
+    insertMatch.run('mat_val_done_r2', 'tour_completed_val', 2, 'VAL-CHAMP-FINALS', iso(-1380), 'FINISHED', 'VAL-CUSTOM-02', 'GGPass456', 'sec_val_02', iso(-1440));
+
+    const insertResult = db.prepare(`
+      INSERT OR REPLACE INTO match_results (id, match_id, user_id, team_id, placement, kills, points, evidence_reference, submitted_by, approved_by, status, created_at)
+      VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, 'usr_admin', 'APPROVED', ?)
+    `);
+
+    const leaderboardRoster = [
+      { user_id: 'usr_pro_phoenix', placement: 1, kills: 14, points: 26, match_id: 'mat_val_done_r1' },
+      { user_id: 'usr_pro_phoenix', placement: 1, kills: 18, points: 30, match_id: 'mat_val_done_r2' },
+      { user_id: 'usr_pro_viper', placement: 2, kills: 11, points: 20, match_id: 'mat_val_done_r1' },
+      { user_id: 'usr_pro_viper', placement: 2, kills: 13, points: 22, match_id: 'mat_val_done_r2' },
+      { user_id: 'usr_pro_shadow', placement: 3, kills: 9, points: 17, match_id: 'mat_val_done_r1' },
+      { user_id: 'usr_pro_shadow', placement: 3, kills: 10, points: 18, match_id: 'mat_val_done_r2' },
+      { user_id: 'usr_pro_ghost', placement: 4, kills: 7, points: 14, match_id: 'mat_val_done_r1' },
+      { user_id: 'usr_pro_ghost', placement: 4, kills: 8, points: 15, match_id: 'mat_val_done_r2' },
+      { user_id: 'usr_pro_cybersam', placement: 5, kills: 6, points: 12, match_id: 'mat_val_done_r1' },
+      { user_id: 'usr_pro_cybersam', placement: 5, kills: 6, points: 12, match_id: 'mat_val_done_r2' },
+      { user_id: 'usr_pro_valkyrie', placement: 6, kills: 5, points: 10, match_id: 'mat_val_done_r1' },
+      { user_id: 'usr_pro_valkyrie', placement: 6, kills: 5, points: 10, match_id: 'mat_val_done_r2' },
+    ];
+
+    for (const lr of leaderboardRoster) {
+      insertResult.run(
+        `res_${lr.match_id}_${lr.user_id}`,
+        lr.match_id,
+        lr.user_id,
+        lr.placement,
+        lr.kills,
+        lr.points,
+        'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=400&q=80',
+        lr.user_id,
+        iso(-1350)
+      );
+    }
+
+    // 6. Seed Realistic Top-Up Orders & Activity
+    const sampleOrders = [
+      { id: 'ORD-9901', user_id: 'usr_pro_phoenix', game_id: 'game_ff', package_id: 'pkg_ff_520', amount: 4.89, status: 'DELIVERED', player_id: '192837465', method: 'eSewa', minsAgo: 15 },
+      { id: 'ORD-9902', user_id: 'usr_pro_viper', game_id: 'game_pubg', package_id: 'pkg_pubg_600', amount: 9.49, status: 'DELIVERED', player_id: '518392019', method: 'Khalti', minsAgo: 32 },
+      { id: 'ORD-9903', user_id: 'usr_pro_shadow', game_id: 'game_mlbb', package_id: 'pkg_mlbb_706', amount: 11.89, status: 'DELIVERED', player_id: '84930214', method: 'IME Pay', minsAgo: 55 },
+      { id: 'ORD-9904', user_id: 'usr_pro_ghost', game_id: 'game_roblox', package_id: 'pkg_rbx_800', amount: 9.79, status: 'DELIVERED', player_id: 'RobloxGamer99', method: 'Wallet', minsAgo: 78 },
+      { id: 'ORD-9905', user_id: 'usr_pro_cybersam', game_id: 'game_ff', package_id: 'pkg_ff_1060', amount: 9.79, status: 'PROCESSING', player_id: '992019283', method: 'eSewa', minsAgo: 5 },
+      { id: 'ORD-9906', user_id: 'usr_pro_valkyrie', game_id: 'game_val', package_id: 'pkg_val_1000', amount: 9.99, status: 'DELIVERED', player_id: 'Valkyrie#EUW', method: 'Khalti', minsAgo: 110 }
+    ];
+
+    const insertOrder = db.prepare(`
+      INSERT OR REPLACE INTO topup_orders (
+        id, user_id, game_id, package_id, player_details, amount, fee, payment_method, status, delivery_attempts, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0.0, ?, ?, 1, ?, ?)
+    `);
+
+    for (const o of sampleOrders) {
+      const details = JSON.stringify({ player_id: o.player_id, in_game_nickname: o.user_id.replace('usr_pro_', '') });
+      insertOrder.run(o.id, o.user_id, o.game_id, o.package_id, details, o.amount, o.method, o.status, iso(-o.minsAgo), iso(-o.minsAgo));
+    }
+
+    // 7. Seed Pending Prize Payouts for Admin Overview
+    const samplePrizes = [
+      { id: 'prz_01', tournament_id: 'tour_completed_val', user_id: 'usr_pro_phoenix', amount: 180.0, place: 1, status: 'PENDING_APPROVAL' },
+      { id: 'prz_02', tournament_id: 'tour_completed_val', user_id: 'usr_pro_viper', amount: 90.0, place: 2, status: 'PENDING_APPROVAL' },
+      { id: 'prz_03', tournament_id: 'tour_completed_val', user_id: 'usr_pro_shadow', amount: 30.0, place: 3, status: 'PENDING_APPROVAL' },
+    ];
+
+    const insertPrize = db.prepare(`
+      INSERT OR REPLACE INTO prize_payouts (
+        id, tournament_id, user_id, amount, status, approved_by, provider_reference, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'usr_admin', ?, ?)
+    `);
+
+    for (const p of samplePrizes) {
+      insertPrize.run(p.id, p.tournament_id, p.user_id, p.amount, p.status, `Rank #${p.place}`, iso(-360));
+    }
+  } catch (err) {
+    console.warn('seedHomeScreenData warning:', err.message);
+  }
+}
+
 initSchema();
 seedDatabase();
 seedAiSubscriptionsIfEmpty();
@@ -1209,6 +1557,7 @@ seedRobloxIfEmpty();
 ensureMasterAdmins();
 seedPaymentGatewaysIfEmpty();
 seedHomepageBannersIfEmpty();
+seedHomeScreenData();
 cleanupDemoAccounts();
 
 module.exports = {
@@ -1219,5 +1568,6 @@ module.exports = {
   ensureMasterAdmins,
   seedPaymentGatewaysIfEmpty,
   seedHomepageBannersIfEmpty,
+  seedHomeScreenData,
   cleanupDemoAccounts
 };

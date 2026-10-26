@@ -286,12 +286,16 @@ async function handleApiRequest(req, res, pathname, query, body) {
     // -------------------------------------------------------------
     // TOP-UP ROUTES
     // -------------------------------------------------------------
-    if (pathname === '/api/topups/games' && req.method === 'GET') {
+    if ((pathname === '/api/topups/games' || pathname === '/api/topup/games') && req.method === 'GET') {
       const games = db.prepare('SELECT * FROM topup_games WHERE active = 1').all();
-      const parsed = games.map(g => ({
-        ...g,
-        required_player_fields: JSON.parse(g.required_player_fields || '[]')
-      }));
+      const parsed = games.map(g => {
+        const pkgs = db.prepare('SELECT * FROM topup_packages WHERE game_id = ? AND active = 1 ORDER BY sort_order ASC, price ASC').all(g.id);
+        return {
+          ...g,
+          required_player_fields: JSON.parse(g.required_player_fields || '[]'),
+          packages: pkgs
+        };
+      });
       return json(parsed);
     }
 
@@ -885,7 +889,8 @@ async function handleApiRequest(req, res, pathname, query, body) {
                COUNT(DISTINCT mr.match_id) as matches_played,
                COALESCE(SUM(mr.kills), 0) as total_kills,
                COALESCE(SUM(mr.points), 0) as total_points,
-               SUM(CASE WHEN mr.placement = 1 THEN 1 ELSE 0 END) as wins
+               SUM(CASE WHEN mr.placement = 1 THEN 1 ELSE 0 END) as wins,
+               COALESCE((SELECT SUM(amount) FROM prize_payouts WHERE user_id = mr.user_id), 0.0) as earnings
         FROM match_results mr
         JOIN users u ON mr.user_id = u.id
         GROUP BY mr.user_id, u.display_name, u.avatar
